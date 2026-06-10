@@ -4,12 +4,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 // ─── Menu item handlers ────────────────────────────────────────────────────
 const menuEditConfig = document.getElementById("menu-edit-config");
 const menuHelp = document.getElementById("menu-help");
+const menuClose = document.getElementById("menu-close");
 const menuQuit = document.getElementById("menu-quit");
 
 async function closeMenu() {
   try {
-    const win = getCurrentWindow();
-    await win.hide();
+    await invoke("hide_menu_window");
   } catch (e) {
     console.error("Hide failed:", e);
   }
@@ -39,6 +39,10 @@ menuHelp.addEventListener("click", async () => {
   );
 });
 
+menuClose.addEventListener("click", async () => {
+  await closeMenu();
+});
+
 menuQuit.addEventListener("click", async () => {
   await closeMenu();
   try {
@@ -53,5 +57,19 @@ const win = getCurrentWindow();
 win.onFocusChanged(({ payload: focused }) => {
   if (!focused) {
     win.hide().catch((e) => console.error("Hide on blur failed:", e));
+  } else {
+    window.focus();
   }
 });
+
+// Close menu on Escape key
+const handleEscape = async (e) => {
+  if (e.key === "Escape") {
+    await closeMenu();
+  }
+};
+window.addEventListener("keydown", handleEscape);
+document.addEventListener("keydown", handleEscape);
+
+// Try to focus on load
+window.focus();

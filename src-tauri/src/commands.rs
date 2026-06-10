@@ -10,7 +10,7 @@ use crate::tiling;
 use crate::desktop;
 
 const MENU_WIDTH: i32 = 200;
-const MENU_HEIGHT: i32 = 170;
+const MENU_HEIGHT: i32 = 200;
 const MENU_OFFSET_X: i32 = 20; // メインウィンドウ右端からのオフセット
 const MENU_OFFSET_Y: i32 = 4;  // メインウィンドウ下端からのオフセット
 

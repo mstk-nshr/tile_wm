@@ -253,3 +253,14 @@ async function fitWindowToContent() {
 
 // ─── Start ────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", init);
+
+// Close menu window when Escape is pressed on the main window
+window.addEventListener("keydown", async (e) => {
+  if (e.key === "Escape") {
+    try {
+      await invoke("hide_menu_window");
+    } catch (err) {
+      console.error("Failed to hide menu window via ESC:", err);
+    }
+  }
+});
