@@ -84,14 +84,12 @@ body::-webkit-scrollbar {
 .tiling-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 10px;
+  justify-content: center;
+  width: 28px;
   height: 28px;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 11px;
-  color: #888;
   background: transparent;
   transition: all 0.15s ease;
   -webkit-app-region: no-drag;
@@ -108,8 +106,15 @@ body::-webkit-scrollbar {
 }
 
 .tiling-btn .icon {
-  font-size: 13px;
-  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tiling-btn .icon img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
 .tiling-btn .label {
