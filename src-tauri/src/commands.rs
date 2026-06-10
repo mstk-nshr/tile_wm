@@ -103,6 +103,11 @@ pub fn get_desktops(state: State<AppState>) -> Vec<i32> {
 }
 
 #[tauri::command]
+pub fn get_current_desktop(state: State<AppState>) -> i32 {
+    *state.current_desktop.lock().unwrap()
+}
+
+#[tauri::command]
 pub fn switch_desktop(number: i32, state: State<AppState>) -> bool {
     let current = *state.current_desktop.lock().unwrap();
     let diff = (number - current).abs();

@@ -26,26 +26,61 @@ pub fn get_current_desktop_number() -> Option<i32> {
             return None;
         }
 
-        // --- CurrentVirtualDesktop (REG_SZ) ---
-        let mut guid_str_buf = [0u16; 80]; // GUID文字列は最大78文字（null込み）
-        let mut buf_size: u32 = (guid_str_buf.len() * 2) as u32; // バイト数
+        // --- CurrentVirtualDesktop ---
         let mut value_type = REG_VALUE_TYPE::default();
-        let ret = RegQueryValueExW(
+        let mut buf_size: u32 = 0;
+        if RegQueryValueExW(
             key,
             w!("CurrentVirtualDesktop"),
             None,
             Some(&mut value_type),
-            Some(guid_str_buf.as_mut_ptr() as *mut u8),
+            None,
             Some(&mut buf_size),
-        );
-        if ret.is_err() {
+        )
+        .is_err()
+        {
             let _ = RegCloseKey(key);
             return None;
         }
-        let guid_str = String::from_utf16_lossy(&guid_str_buf[..(buf_size / 2 - 1) as usize]);
 
-        // --- 文字列 GUID → バイナリ GUID (16 bytes) ---
-        let cur_guid_bin = parse_guid_string(&guid_str)?;
+        let mut val_buf = vec![0u8; buf_size as usize];
+        if RegQueryValueExW(
+            key,
+            w!("CurrentVirtualDesktop"),
+            None,
+            Some(&mut value_type),
+            Some(val_buf.as_mut_ptr()),
+            Some(&mut buf_size),
+        )
+        .is_err()
+        {
+            let _ = RegCloseKey(key);
+            return None;
+        }
+
+        let cur_guid_bin = if value_type == REG_BINARY {
+            if val_buf.len() != 16 {
+                let _ = RegCloseKey(key);
+                return None;
+            }
+            val_buf
+        } else if value_type == REG_SZ {
+            let u16_chars = val_buf
+                .chunks_exact(2)
+                .map(|chunk| u16::from_ne_bytes([chunk[0], chunk[1]]))
+                .collect::<Vec<u16>>();
+            let len = u16_chars.iter().position(|&x| x == 0).unwrap_or(u16_chars.len());
+            let guid_str = String::from_utf16_lossy(&u16_chars[..len]);
+            let bin = parse_guid_string(&guid_str);
+            if bin.is_none() {
+                let _ = RegCloseKey(key);
+                return None;
+            }
+            bin.unwrap()
+        } else {
+            let _ = RegCloseKey(key);
+            return None;
+        };
 
         // --- VirtualDesktopIDs (REG_BINARY) ---
         let mut bin_size: u32 = 0;

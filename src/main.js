@@ -140,10 +140,11 @@ function createDesktopButtons(desktopList) {
 
 async function loadDesktopState() {
   try {
-    // TODO: get current desktop from backend
-    updateDesktopUI(1);
+    const current = await invoke("get_current_desktop");
+    updateDesktopUI(current);
   } catch (e) {
-    console.error(e);
+    console.error("Failed to load current desktop state:", e);
+    updateDesktopUI(1);
   }
 }
 
