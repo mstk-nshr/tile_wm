@@ -1,0 +1,59 @@
+mod app_bar;
+mod desktop;
+pub mod tiling;
+mod config;
+mod commands;
+
+use tauri::Manager;
+use std::sync::Mutex;
+
+pub struct AppState {
+    pub config: Mutex<config::Config>,
+    pub current_desktop: Mutex<i32>,
+    pub tiling_mode: Mutex<tiling::TilingMode>,
+    pub float_window_pos: Mutex<(f64, f64)>,
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let config = config::load_config();
+    let float_pos = (config.float_x, config.float_y);
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .manage(AppState {
+            config: Mutex::new(config.clone()),
+            current_desktop: Mutex::new(0),
+            tiling_mode: Mutex::new(tiling::TilingMode::Free),
+            float_window_pos: Mutex::new(float_pos),
+        })
+        .setup(move |app| {
+            let window = app.get_webview_window("main").unwrap();
+            app_bar::register_app_bar(&window, config.bar_height)?;
+
+            // Start desktop listener thread
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                desktop::listen_desktop_switch(app_handle);
+            });
+
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_config,
+            commands::update_config,
+            commands::get_desktops,
+            commands::switch_desktop,
+            commands::get_tiling_mode,
+            commands::set_tiling_mode,
+            commands::apply_tiling,
+            commands::get_window_list,
+            commands::set_float_pos,
+            commands::open_config_file,
+            commands::show_menu_window,
+            commands::hide_menu_window,
+            commands::quit_app,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
