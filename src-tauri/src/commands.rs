@@ -297,6 +297,9 @@ pub async fn show_menu_window(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| format!("build menu: {}", e))?
     };
 
+    // Remove Windows 11 accent-color border
+    crate::app_bar::remove_window_border(&menu);
+
     // Move to computed position
     menu.set_position(tauri::PhysicalPosition::new(menu_x, menu_y))
         .map_err(|e| format!("set_position: {}", e))?;
