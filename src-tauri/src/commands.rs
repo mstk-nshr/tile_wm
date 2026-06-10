@@ -63,8 +63,13 @@ pub fn update_config(state: State<AppState>, new_config: ConfigResponse) {
 
 #[tauri::command]
 pub fn get_desktops(state: State<AppState>) -> Vec<i32> {
-    let config = state.config.lock().unwrap();
-    (1..=config.desktop_count).collect()
+    // レジストリから実際のデスクトップ数を取得し、失敗時は config の値を使用
+    let count = crate::desktop::get_desktop_count()
+        .unwrap_or_else(|| {
+            let config = state.config.lock().unwrap();
+            config.desktop_count
+        });
+    (1..=count).collect()
 }
 
 #[tauri::command]

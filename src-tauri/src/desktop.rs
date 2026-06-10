@@ -1,12 +1,177 @@
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::Win32::System::Threading::*;
-use windows::core::PWSTR;
+use windows::Win32::System::Registry::*;
+use windows::core::{w, PWSTR};
 use tauri::{Emitter, Manager};
 
-pub fn listen_desktop_switch(app_handle: tauri::AppHandle) {
+/// Windows レジストリから現在の仮想デスクトップ番号（1-based）を取得する。
+/// レジストリキー:
+///   HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops
+///   - CurrentVirtualDesktop : REG_SZ  (現在のデスクトップ GUID 文字列)
+///   - VirtualDesktopIDs     : REG_BINARY (全デスクトップ GUID を連結したバイナリ)
+pub fn get_current_desktop_number() -> Option<i32> {
+    unsafe {
+        let mut key = HKEY::default();
+        let path = w!("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VirtualDesktops");
+        if RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            path,
+            0,
+            KEY_READ,
+            &mut key,
+        )
+        .is_err()
+        {
+            return None;
+        }
+
+        // --- CurrentVirtualDesktop (REG_SZ) ---
+        let mut guid_str_buf = [0u16; 80]; // GUID文字列は最大78文字（null込み）
+        let mut buf_size: u32 = (guid_str_buf.len() * 2) as u32; // バイト数
+        let mut value_type = REG_VALUE_TYPE::default();
+        let ret = RegQueryValueExW(
+            key,
+            w!("CurrentVirtualDesktop"),
+            None,
+            Some(&mut value_type),
+            Some(guid_str_buf.as_mut_ptr() as *mut u8),
+            Some(&mut buf_size),
+        );
+        if ret.is_err() {
+            let _ = RegCloseKey(key);
+            return None;
+        }
+        let guid_str = String::from_utf16_lossy(&guid_str_buf[..(buf_size / 2 - 1) as usize]);
+
+        // --- 文字列 GUID → バイナリ GUID (16 bytes) ---
+        let cur_guid_bin = parse_guid_string(&guid_str)?;
+
+        // --- VirtualDesktopIDs (REG_BINARY) ---
+        let mut bin_size: u32 = 0;
+        let mut value_type2 = REG_VALUE_TYPE::default();
+        if RegQueryValueExW(
+            key,
+            w!("VirtualDesktopIDs"),
+            None,
+            Some(&mut value_type2),
+            None,
+            Some(&mut bin_size),
+        )
+        .is_err()
+        {
+            let _ = RegCloseKey(key);
+            return None;
+        }
+
+        let mut bin_buf: Vec<u8> = vec![0u8; bin_size as usize];
+        let mut value_type3 = REG_VALUE_TYPE::default();
+        if RegQueryValueExW(
+            key,
+            w!("VirtualDesktopIDs"),
+            None,
+            Some(&mut value_type3),
+            Some(bin_buf.as_mut_ptr()),
+            Some(&mut bin_size),
+        )
+        .is_err()
+        {
+            let _ = RegCloseKey(key);
+            return None;
+        }
+        let _ = RegCloseKey(key);
+
+        // 16 バイトずつ走査してインデックスを探す
+        for (i, chunk) in bin_buf.chunks(16).enumerate() {
+            if chunk.len() == 16 && chunk == cur_guid_bin.as_slice() {
+                return Some((i + 1) as i32); // 1-based
+            }
+        }
+
+        None
+    }
+}
+
+/// Windows レジストリから仮想デスクトップの総数（1-based の最大番号）を取得する。
+/// VirtualDesktopIDs のバイナリから 16 バイトチャンク数を数える。
+pub fn get_desktop_count() -> Option<i32> {
+    unsafe {
+        let mut key = HKEY::default();
+        let path = w!("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VirtualDesktops");
+        if RegOpenKeyExW(HKEY_CURRENT_USER, path, 0, KEY_READ, &mut key).is_err() {
+            return None;
+        }
+
+        let mut bin_size: u32 = 0;
+        let mut value_type = REG_VALUE_TYPE::default();
+        if RegQueryValueExW(
+            key,
+            w!("VirtualDesktopIDs"),
+            None,
+            Some(&mut value_type),
+            None,
+            Some(&mut bin_size),
+        )
+        .is_err()
+        {
+            let _ = RegCloseKey(key);
+            return None;
+        }
+
+        let _ = RegCloseKey(key);
+        // 各デスクトップは 16 バイトの GUID
+        Some((bin_size / 16) as i32)
+    }
+}
+
+/// GUID 文字列 "{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}" を
+/// 16 バイトのバイナリ GUID に変換する。
+fn parse_guid_string(s: &str) -> Option<Vec<u8>> {
+    let s = s.trim();
+    let s = s.strip_prefix('{').unwrap_or(s);
+    let s = s.strip_suffix('}').unwrap_or(s);
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() != 5 {
+        return None;
+    }
+
+    let data1 = u32::from_str_radix(parts[0], 16).ok()?;
+    let data2 = u16::from_str_radix(parts[1], 16).ok()?;
+    let data3 = u16::from_str_radix(parts[2], 16).ok()?;
+    let data4 = hex_str_to_bytes(parts[3])?;
+    let data5 = hex_str_to_bytes(parts[4])?;
+
+    let mut bytes = Vec::with_capacity(16);
+    // Data1 – little-endian
+    bytes.extend_from_slice(&data1.to_le_bytes());
+    // Data2 – little-endian
+    bytes.extend_from_slice(&data2.to_le_bytes());
+    // Data3 – little-endian
+    bytes.extend_from_slice(&data3.to_le_bytes());
+    // Data4 (2 bytes) – big-endian (in-order)
+    bytes.extend_from_slice(&data4);
+    // Data5 (6 bytes) – big-endian (in-order)
+    bytes.extend_from_slice(&data5);
+
+    Some(bytes)
+}
+
+fn hex_str_to_bytes(s: &str) -> Option<Vec<u8>> {
+    let s = s.trim();
+    if s.len() % 2 != 0 {
+        return None;
+    }
+    let mut bytes = Vec::with_capacity(s.len() / 2);
+    for i in (0..s.len()).step_by(2) {
+        let b = u8::from_str_radix(&s[i..i + 2], 16).ok()?;
+        bytes.push(b);
+    }
+    Some(bytes)
+}
+
+pub fn listen_desktop_switch(app_handle: tauri::AppHandle, initial_desktop: i32) {
     let mut last_fg_hwnd: isize = 0;
-    let mut desktop_counter: i32 = 1;
+    let mut desktop_counter: i32 = initial_desktop;
     let mut last_switch_time = std::time::Instant::now();
 
     loop {

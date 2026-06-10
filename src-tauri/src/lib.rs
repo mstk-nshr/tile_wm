@@ -19,11 +19,15 @@ pub fn run() {
     let config = config::load_config();
     let float_pos = (config.float_x, config.float_y);
 
+    // 起動時に実際の仮想デスクトップ番号を取得
+    let initial_desktop = desktop::get_current_desktop_number().unwrap_or(1);
+    let initial_desktop_for_thread = initial_desktop;
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AppState {
             config: Mutex::new(config.clone()),
-            current_desktop: Mutex::new(0),
+            current_desktop: Mutex::new(initial_desktop),
             tiling_mode: Mutex::new(tiling::TilingMode::Free),
             float_window_pos: Mutex::new(float_pos),
         })
@@ -34,7 +38,7 @@ pub fn run() {
             // Start desktop listener thread
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
-                desktop::listen_desktop_switch(app_handle);
+                desktop::listen_desktop_switch(app_handle, initial_desktop_for_thread);
             });
 
             Ok(())
