@@ -7,6 +7,7 @@ let currentMode = "free";
 let config = null;
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────
+const taskbar = document.getElementById("taskbar");
 const desktopSection = document.getElementById("desktop-section");
 const tilingBtns = document.querySelectorAll(".tiling-btn");
 const menuBtn = document.getElementById("menu-btn");
@@ -95,6 +96,12 @@ async function init() {
   } catch (e) {
     console.error("Event listen failed:", e);
   }
+
+  // Measure rendered content width and resize window to fit exactly
+  requestAnimationFrame(() => {
+    // Double rAF ensures layout is complete before measuring
+    requestAnimationFrame(() => fitWindowToContent());
+  });
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────
@@ -228,6 +235,20 @@ function setupFloatWindowDrag() {
       invoke("set_float_pos", { x: rect.left, y: rect.top });
     }
   });
+}
+
+// ─── Window Size ──────────────────────────────────────────────────────────
+
+/// Measure the actual rendered width of the taskbar and resize the window
+/// to fit exactly, eliminating any gaps on the sides.
+async function fitWindowToContent() {
+  const contentWidth = taskbar.scrollWidth;
+  const height = config?.bar_height ?? 40;
+  try {
+    await invoke("set_window_size", { width: contentWidth, height: height });
+  } catch (e) {
+    console.error("set_window_size failed:", e);
+  }
 }
 
 // ─── Start ────────────────────────────────────────────────────────────────

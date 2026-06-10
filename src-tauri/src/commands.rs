@@ -46,19 +46,49 @@ pub fn get_config(state: State<AppState>) -> ConfigResponse {
 }
 
 #[tauri::command]
-pub fn update_config(state: State<AppState>, new_config: ConfigResponse) {
-    let mut config = state.config.lock().unwrap();
-    config.bar_height = new_config.bar_height;
-    config.desktop_count = new_config.desktop_count;
-    config.split_ratio_x = new_config.split_ratio_x;
-    config.split_ratio_y = new_config.split_ratio_y;
-    config.exclude_titles = new_config.exclude_titles;
-    config.exclude_processes = new_config.exclude_processes;
-    config.float_x = new_config.float_x;
-    config.float_y = new_config.float_y;
-    config.float_width = new_config.float_width;
-    config.float_bg_rgba = new_config.float_bg_rgba;
-    config::save_config(&config);
+pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: ConfigResponse) {
+    let old_desktop_count;
+    {
+        let mut config = state.config.lock().unwrap();
+        old_desktop_count = config.desktop_count;
+        config.bar_height = new_config.bar_height;
+        config.desktop_count = new_config.desktop_count;
+        config.split_ratio_x = new_config.split_ratio_x;
+        config.split_ratio_y = new_config.split_ratio_y;
+        config.exclude_titles = new_config.exclude_titles;
+        config.exclude_processes = new_config.exclude_processes;
+        config.float_x = new_config.float_x;
+        config.float_y = new_config.float_y;
+        config.float_width = new_config.float_width;
+        config.float_bg_rgba = new_config.float_bg_rgba;
+        config::save_config(&config);
+    }
+
+    // Resize main window when desktop_count changes
+    if new_config.desktop_count != old_desktop_count {
+        if let Some(window) = app.get_webview_window("main") {
+            let width = crate::app_bar::compute_width(new_config.desktop_count);
+            unsafe {
+                use windows::Win32::UI::WindowsAndMessaging::*;
+                use windows::Win32::Foundation::HWND;
+                let hwnd = match window.hwnd() {
+                    Ok(h) => HWND(h.0),
+                    Err(_) => return,
+                };
+                let screen_w = GetSystemMetrics(SM_CXSCREEN);
+                let x = (screen_w - width) / 2;
+                let _ = SetWindowPos(
+                    hwnd,
+                    HWND_TOPMOST,
+                    x,
+                    0,
+                    width,
+                    new_config.bar_height,
+                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                );
+            }
+        }
+    }
 }
 
 #[tauri::command]
@@ -291,4 +321,34 @@ pub fn hide_menu_window(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
+}
+
+/// Resize the main window to exactly fit the rendered taskbar content width.
+/// Called from JS after DOM is fully laid out.
+#[tauri::command]
+pub fn set_window_size(app: tauri::AppHandle, width: i32, height: i32) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+
+    unsafe {
+        use windows::Win32::UI::WindowsAndMessaging::*;
+        use windows::Win32::Foundation::HWND;
+        let hwnd = match window.hwnd() {
+            Ok(h) => HWND(h.0),
+            Err(e) => return Err(format!("hwnd: {}", e)),
+        };
+        let screen_w = GetSystemMetrics(SM_CXSCREEN);
+        let x = (screen_w - width) / 2;
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            x,
+            0,
+            width,
+            height,
+            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        );
+    }
+    Ok(())
 }

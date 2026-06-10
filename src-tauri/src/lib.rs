@@ -33,7 +33,7 @@ pub fn run() {
         })
         .setup(move |app| {
             let window = app.get_webview_window("main").unwrap();
-            app_bar::register_app_bar(&window, config.bar_height)?;
+            app_bar::register_app_bar(&window, config.bar_height, config.desktop_count)?;
 
             // Start desktop listener thread
             let app_handle = app.handle().clone();
@@ -57,6 +57,7 @@ pub fn run() {
             commands::show_menu_window,
             commands::hide_menu_window,
             commands::quit_app,
+            commands::set_window_size,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
