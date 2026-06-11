@@ -292,15 +292,25 @@ window.addEventListener("keydown", async (e) => {
       console.error("Failed to hide menu window via ESC:", err);
     }
   }
-  // F12 or Ctrl+D: dump detected windows to console
-  if (e.key === "F12" || (e.ctrlKey && e.key === "d")) {
+  // F12: print window diagnostic list to Rust stdout
+  // (visible in the terminal running this app)
+  if (e.key === "F12") {
+    e.preventDefault();
+    try {
+      await invoke("debug_print_windows");
+    } catch (err) {
+      console.error("debug_print_windows failed:", err);
+    }
+  }
+  // Ctrl+D: dump detected windows to console (requires DevTools open)
+  if (e.ctrlKey && e.key === "d") {
     e.preventDefault();
     await debugDumpWindows();
   }
 });
 
 /// Debug helper: print ALL detected windows (including cloaked) to the browser console.
-/// Open DevTools (F12) after pressing F12 or Ctrl+D to see the list.
+/// Press Ctrl+D (with DevTools open) to see the list.
 async function debugDumpWindows() {
   try {
     const allWindows = await invoke("debug_window_list");
@@ -326,12 +336,6 @@ async function debugDumpWindows() {
       }))
     );
     console.log("═══════════════════════════════════════════");
-    alert(
-      `Window diagnostics written to browser console.\n\n` +
-      `Total EnumWindows: ${allWindows.length}\n` +
-      `Non-cloaked (tiling target): ${tiledWindows.length}\n\n` +
-      `Open DevTools (F12) → Console tab to see details.`
-    );
   } catch (e) {
     console.error("debugDumpWindows failed:", e);
   }

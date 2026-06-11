@@ -58,6 +58,8 @@ pub fn run() {
             commands::apply_tiling,
             commands::get_window_list,
             commands::debug_window_list,
+            commands::debug_print_windows,
+            commands::toggle_devtools_size,
             commands::set_float_pos,
             commands::open_config_file,
             commands::show_menu_window,

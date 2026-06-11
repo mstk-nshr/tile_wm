@@ -338,6 +338,43 @@ pub fn get_window_list(state: State<AppState>) -> Vec<desktop::WindowInfo> {
         .collect()
 }
 
+/// Debug: print ALL visible windows (including cloaked) to the Rust stdout
+/// (visible in the terminal running `cargo tauri dev` or the built executable).
+#[tauri::command]
+pub fn debug_print_windows() {
+    let windows = desktop::get_visible_windows();
+    let non_cloaked: Vec<_> = windows.iter().filter(|w| !w.is_cloaked).collect();
+
+    println!("");
+    println!("═══════════════════════════════════════════════════════");
+    println!("[tile_wm DEBUG] EnumWindows detected {} windows", windows.len());
+    println!("  Non-cloaked (tiling targets): {}", non_cloaked.len());
+    println!("");
+    println!("  {:<3} {:<50} {:<20} {:<9} {:<10} {}", "#", "Title", "Process", "Cloaked", "Minimized", "HWND");
+    println!("  {:-<3} {:-<50} {:-<20} {:-<9} {:-<10} {:-<10}", "", "", "", "", "", "");
+    for (i, w) in windows.iter().enumerate() {
+        let cloaked = if w.is_cloaked { "CLOAKED" } else { "—" };
+        let minimized = if w.is_minimized { "minimized" } else { "—" };
+        let title = truncate_title(&w.title, 48);
+        println!("  {:<3} {:<50} {:<20} {:<9} {:<10} {}", i, title, w.process_name, cloaked, minimized, w.hwnd);
+    }
+    println!("═══════════════════════════════════════════════════════");
+    println!("");
+}
+
+/// Truncate a string at a UTF-8 char boundary so slicing never panics.
+fn truncate_title(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s.to_string();
+    }
+    // Walk backward from max_bytes until we hit a char boundary
+    let mut end = max_bytes;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}…", &s[..end])
+}
+
 /// Debug: return ALL visible windows including cloaked ones, with cloaked status.
 /// Useful to understand what windows EnumWindows detects on the current desktop.
 #[tauri::command]
@@ -479,6 +516,64 @@ pub fn set_window_size(app: tauri::AppHandle, width: i32, height: i32) -> Result
             adjusted_height,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
         );
+    }
+    Ok(())
+}
+
+/// Toggle DevTools-friendly window size.
+/// Normal = taskbar height; Debug = 800x600 so DevTools console is visible.
+#[tauri::command]
+pub fn toggle_devtools_size(app: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+
+    let cfg = state.config.lock().unwrap();
+    let normal_h = cfg.bar_height;
+    drop(cfg);
+
+    let scale_factor = window.scale_factor().unwrap_or(1.0);
+    let hwnd = match window.hwnd() {
+        Ok(h) => HWND(h.0),
+        Err(e) => return Err(format!("hwnd: {}", e)),
+    };
+
+    unsafe {
+        let mut rect = RECT::default();
+        let _ = GetWindowRect(hwnd, &mut rect);
+        let current_client_h = rect.bottom - rect.top;
+
+        let normal_phys = (normal_h as f64 * scale_factor) as i32;
+        let threshold = normal_phys * 2;
+
+        if current_client_h > threshold {
+            // Restore to normal (taskbar height only)
+            let screen_w = GetSystemMetrics(SM_CXSCREEN);
+            let _ = SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                (screen_w - (rect.right - rect.left)) / 2,
+                0,
+                rect.right - rect.left,
+                normal_phys,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            );
+        } else {
+            // Expand to 800x600 for DevTools
+            let debug_w = (800_f64 * scale_factor) as i32;
+            let debug_h = (600_f64 * scale_factor) as i32;
+            let screen_w = GetSystemMetrics(SM_CXSCREEN);
+            let x = (screen_w - debug_w) / 2;
+            let _ = SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                x,
+                0,
+                debug_w,
+                debug_h,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            );
+        }
     }
     Ok(())
 }
