@@ -1,4 +1,4 @@
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Dwm::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -30,14 +30,34 @@ pub fn remove_window_border(window: &tauri::WebviewWindow) {
     }
 }
 
-pub fn register_app_bar(window: &tauri::WebviewWindow, height: i32, desktop_count: i32) -> Result<(), Box<dyn std::error::Error>> {
+pub fn register_app_bar(
+    window: &tauri::WebviewWindow,
+    height: i32,
+    desktop_count: i32,
+) -> Result<(), Box<dyn std::error::Error>> {
     let width = compute_width(desktop_count);
+    let scale_factor = window.scale_factor().unwrap_or(1.0);
+    let physical_width = (width as f64 * scale_factor) as i32;
+    let physical_height = (height as f64 * scale_factor) as i32;
 
     unsafe {
         let hwnd = get_window_handle(window)?;
 
+        let mut rect_window = RECT::default();
+        let mut rect_client = RECT::default();
+        let _ = GetWindowRect(hwnd, &mut rect_window);
+        let _ = GetClientRect(hwnd, &mut rect_client);
+
+        let border_width =
+            (rect_window.right - rect_window.left) - (rect_client.right - rect_client.left);
+        let border_height =
+            (rect_window.bottom - rect_window.top) - (rect_client.bottom - rect_client.top);
+
+        let adjusted_width = physical_width + border_width;
+        let adjusted_height = physical_height + border_height;
+
         let screen_w = GetSystemMetrics(SM_CXSCREEN);
-        let x = (screen_w - width) / 2;
+        let x = (screen_w - adjusted_width) / 2;
 
         // Position window at center-top with computed width
         let _ = SetWindowPos(
@@ -45,8 +65,8 @@ pub fn register_app_bar(window: &tauri::WebviewWindow, height: i32, desktop_coun
             HWND_TOPMOST,
             x,
             0,
-            width,
-            height,
+            adjusted_width,
+            adjusted_height,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
         );
 

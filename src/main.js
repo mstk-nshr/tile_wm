@@ -108,6 +108,9 @@ async function init() {
 async function loadConfig() {
   try {
     config = await invoke("get_config");
+    if (config && config.bar_height) {
+      taskbar.style.height = `${config.bar_height}px`;
+    }
   } catch (e) {
     console.error("Failed to load config:", e);
   }

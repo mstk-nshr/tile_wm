@@ -25,7 +25,7 @@ body::-webkit-scrollbar {
 /* ─── Taskbar ─── */
 #taskbar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   height: 44px;
   background: rgb(32, 32, 32);
@@ -36,6 +36,7 @@ body::-webkit-scrollbar {
 /* ─── Desktop Buttons ─── */
 #desktop-section {
   display: flex;
+  align-items: center;
   gap: 2px;
   padding-left: 20px;
 }
@@ -78,6 +79,7 @@ body::-webkit-scrollbar {
 /* ─── Tiling Buttons ─── */
 #tiling-section {
   display: flex;
+  align-items: center;
   gap: 2px;
 }
 
@@ -125,6 +127,7 @@ body::-webkit-scrollbar {
 /* ─── Menu Button ─── */
 #menu-section {
   display: flex;
+  align-items: center;
   padding-right: 20px;
 }
 

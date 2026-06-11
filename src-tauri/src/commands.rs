@@ -1,23 +1,22 @@
-use tauri::{Manager, State};
 use serde::{Deserialize, Serialize};
+use tauri::{Manager, State};
+use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics;
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows::Win32::Foundation::{HWND, RECT};
 
-use crate::AppState;
 use crate::config;
-use crate::tiling;
 use crate::desktop;
+use crate::tiling;
+use crate::AppState;
 
 const MENU_WIDTH: i32 = 200;
 const MENU_HEIGHT: i32 = 200;
 const MENU_OFFSET_X: i32 = 20; // メインウィンドウ右端からのオフセット
-const MENU_OFFSET_Y: i32 = 4;  // メインウィンドウ下端からのオフセット
+const MENU_OFFSET_Y: i32 = 4; // メインウィンドウ下端からのオフセット
 
 #[derive(Serialize, Deserialize)]
 pub struct ConfigResponse {
     pub bar_height: i32,
-    pub desktop_count: i32,
     pub split_ratio_x: i32,
     pub split_ratio_y: i32,
     pub exclude_titles: Vec<String>,
@@ -33,7 +32,6 @@ pub fn get_config(state: State<AppState>) -> ConfigResponse {
     let config = state.config.lock().unwrap();
     ConfigResponse {
         bar_height: config.bar_height,
-        desktop_count: config.desktop_count,
         split_ratio_x: config.split_ratio_x,
         split_ratio_y: config.split_ratio_y,
         exclude_titles: config.exclude_titles.clone(),
@@ -47,12 +45,11 @@ pub fn get_config(state: State<AppState>) -> ConfigResponse {
 
 #[tauri::command]
 pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: ConfigResponse) {
-    let old_desktop_count;
+    let old_bar_height;
     {
         let mut config = state.config.lock().unwrap();
-        old_desktop_count = config.desktop_count;
+        old_bar_height = config.bar_height;
         config.bar_height = new_config.bar_height;
-        config.desktop_count = new_config.desktop_count;
         config.split_ratio_x = new_config.split_ratio_x;
         config.split_ratio_y = new_config.split_ratio_y;
         config.exclude_titles = new_config.exclude_titles;
@@ -64,26 +61,44 @@ pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: 
         config::save_config(&config);
     }
 
-    // Resize main window when desktop_count changes
-    if new_config.desktop_count != old_desktop_count {
+    // Resize main window when bar_height changes
+    if new_config.bar_height != old_bar_height {
         if let Some(window) = app.get_webview_window("main") {
-            let width = crate::app_bar::compute_width(new_config.desktop_count);
+            let desktop_count = crate::desktop::get_desktop_count().unwrap_or(4);
+            let width = crate::app_bar::compute_width(desktop_count);
+            let scale_factor = window.scale_factor().unwrap_or(1.0);
+            let physical_width = (width as f64 * scale_factor) as i32;
+            let physical_height = (new_config.bar_height as f64 * scale_factor) as i32;
             unsafe {
+                use windows::Win32::Foundation::{HWND, RECT};
                 use windows::Win32::UI::WindowsAndMessaging::*;
-                use windows::Win32::Foundation::HWND;
                 let hwnd = match window.hwnd() {
                     Ok(h) => HWND(h.0),
                     Err(_) => return,
                 };
+
+                let mut rect_window = RECT::default();
+                let mut rect_client = RECT::default();
+                let _ = GetWindowRect(hwnd, &mut rect_window);
+                let _ = GetClientRect(hwnd, &mut rect_client);
+
+                let border_width =
+                    (rect_window.right - rect_window.left) - (rect_client.right - rect_client.left);
+                let border_height =
+                    (rect_window.bottom - rect_window.top) - (rect_client.bottom - rect_client.top);
+
+                let adjusted_width = physical_width + border_width;
+                let adjusted_height = physical_height + border_height;
+
                 let screen_w = GetSystemMetrics(SM_CXSCREEN);
-                let x = (screen_w - width) / 2;
+                let x = (screen_w - adjusted_width) / 2;
                 let _ = SetWindowPos(
                     hwnd,
                     HWND_TOPMOST,
                     x,
                     0,
-                    width,
-                    new_config.bar_height,
+                    adjusted_width,
+                    adjusted_height,
                     SWP_NOACTIVATE | SWP_SHOWWINDOW,
                 );
             }
@@ -92,13 +107,9 @@ pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: 
 }
 
 #[tauri::command]
-pub fn get_desktops(state: State<AppState>) -> Vec<i32> {
-    // レジストリから実際のデスクトップ数を取得し、失敗時は config の値を使用
-    let count = crate::desktop::get_desktop_count()
-        .unwrap_or_else(|| {
-            let config = state.config.lock().unwrap();
-            config.desktop_count
-        });
+pub fn get_desktops() -> Vec<i32> {
+    // レジストリから実際のデスクトップ数を取得し、失敗時はデフォルトの4を使用
+    let count = crate::desktop::get_desktop_count().unwrap_or(4);
     (1..=count).collect()
 }
 
@@ -119,8 +130,30 @@ pub fn switch_desktop(number: i32, state: State<AppState>) -> bool {
         use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
         let press_mods = [
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: 0, dwFlags: KEYBD_EVENT_FLAGS(0), time: 0, dwExtraInfo: 0 } } },
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_LWIN, wScan: 0, dwFlags: KEYBD_EVENT_FLAGS(0), time: 0, dwExtraInfo: 0 } } },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        wScan: 0,
+                        dwFlags: KEYBD_EVENT_FLAGS(0),
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_LWIN,
+                        wScan: 0,
+                        dwFlags: KEYBD_EVENT_FLAGS(0),
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
         ];
         let _ = SendInput(&press_mods, std::mem::size_of::<INPUT>() as i32);
 
@@ -128,15 +161,59 @@ pub fn switch_desktop(number: i32, state: State<AppState>) -> bool {
 
         for _ in 0..diff {
             let strike = [
-                INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: arrow, wScan: 0, dwFlags: KEYBD_EVENT_FLAGS(0), time: 0, dwExtraInfo: 0 } } },
-                INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: arrow, wScan: 0, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: arrow,
+                            wScan: 0,
+                            dwFlags: KEYBD_EVENT_FLAGS(0),
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: arrow,
+                            wScan: 0,
+                            dwFlags: KEYEVENTF_KEYUP,
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
             ];
             let _ = SendInput(&strike, std::mem::size_of::<INPUT>() as i32);
         }
 
         let release_mods = [
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_LWIN, wScan: 0, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: 0, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_LWIN,
+                        wScan: 0,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        wScan: 0,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
         ];
         let _ = SendInput(&release_mods, std::mem::size_of::<INPUT>() as i32);
     }
@@ -153,7 +230,8 @@ pub fn get_tiling_mode(state: State<AppState>) -> String {
 
 #[tauri::command]
 pub fn set_tiling_mode(state: State<AppState>, mode: String) {
-    let new_mode: tiling::TilingMode = serde_json::from_str(&mode).unwrap_or(tiling::TilingMode::Free);
+    let new_mode: tiling::TilingMode =
+        serde_json::from_str(&mode).unwrap_or(tiling::TilingMode::Free);
     *state.tiling_mode.lock().unwrap() = new_mode;
 }
 
@@ -161,24 +239,30 @@ pub fn set_tiling_mode(state: State<AppState>, mode: String) {
 pub fn apply_tiling(state: State<AppState>) -> bool {
     let mode = *state.tiling_mode.lock().unwrap();
     let config = state.config.lock().unwrap();
-    
+
     // Get visible windows on current desktop
     let windows = desktop::get_visible_windows();
-    
+
     // Filter excluded windows
-    let filtered: Vec<_> = windows.iter().filter(|w| {
-        !config.exclude_processes.iter().any(|p| w.process_name.contains(p)) &&
-        !config.exclude_titles.iter().any(|t| w.title.contains(t))
-    }).collect();
-    
+    let filtered: Vec<_> = windows
+        .iter()
+        .filter(|w| {
+            !config
+                .exclude_processes
+                .iter()
+                .any(|p| w.process_name.contains(p))
+                && !config.exclude_titles.iter().any(|t| w.title.contains(t))
+        })
+        .collect();
+
     if filtered.is_empty() {
         return false;
     }
-    
+
     // Get primary monitor work area
     let monitor_w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
     let monitor_h = unsafe { GetSystemMetrics(SM_CYSCREEN) };
-    
+
     let config_tiling = tiling::TilingConfig {
         monitor_x: 0,
         monitor_y: 0,
@@ -188,12 +272,8 @@ pub fn apply_tiling(state: State<AppState>) -> bool {
         split_ratio_y: config.split_ratio_y,
     };
 
-    let tiles = tiling::calculate_tiles(
-        mode,
-        config_tiling,
-        filtered.len(),
-    );
-    
+    let tiles = tiling::calculate_tiles(mode, config_tiling, filtered.len());
+
     // Apply tile positions to windows
     for (i, tile) in tiles.iter().enumerate() {
         if i >= filtered.len() {
@@ -220,7 +300,7 @@ pub fn apply_tiling(state: State<AppState>) -> bool {
             );
         }
     }
-    
+
     true
 }
 
@@ -228,11 +308,17 @@ pub fn apply_tiling(state: State<AppState>) -> bool {
 pub fn get_window_list(state: State<AppState>) -> Vec<desktop::WindowInfo> {
     let config = state.config.lock().unwrap();
     let windows = desktop::get_visible_windows();
-    
-    windows.into_iter().filter(|w| {
-        !config.exclude_processes.iter().any(|p| w.process_name.contains(p)) &&
-        !config.exclude_titles.iter().any(|t| w.title.contains(t))
-    }).collect()
+
+    windows
+        .into_iter()
+        .filter(|w| {
+            !config
+                .exclude_processes
+                .iter()
+                .any(|p| w.process_name.contains(p))
+                && !config.exclude_titles.iter().any(|t| w.title.contains(t))
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -263,9 +349,7 @@ pub async fn show_menu_window(app: tauri::AppHandle) -> Result<(), String> {
         .get_webview_window("main")
         .ok_or_else(|| "main window not found".to_string())?;
 
-    let main_hwnd = main
-        .hwnd()
-        .map_err(|e| format!("hwnd: {}", e))?;
+    let main_hwnd = main.hwnd().map_err(|e| format!("hwnd: {}", e))?;
 
     let mut rect = RECT::default();
     let got_rect = unsafe { GetWindowRect(HWND(main_hwnd.0), &mut rect) };
@@ -281,25 +365,21 @@ pub async fn show_menu_window(app: tauri::AppHandle) -> Result<(), String> {
     let menu = if let Some(w) = app.get_webview_window("menu") {
         w
     } else {
-        tauri::WebviewWindowBuilder::new(
-            &app,
-            "menu",
-            tauri::WebviewUrl::App("menu.html".into()),
-        )
-        .title("tile_wm menu")
-        .inner_size(MENU_WIDTH as f64, MENU_HEIGHT as f64)
-        .min_inner_size(MENU_WIDTH as f64, MENU_HEIGHT as f64)
-        .resizable(false)
-        .maximizable(false)
-        .minimizable(false)
-        .decorations(false)
-        .transparent(true)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .focused(true)
-        .visible(false)
-        .build()
-        .map_err(|e| format!("build menu: {}", e))?
+        tauri::WebviewWindowBuilder::new(&app, "menu", tauri::WebviewUrl::App("menu.html".into()))
+            .title("tile_wm menu")
+            .inner_size(MENU_WIDTH as f64, MENU_HEIGHT as f64)
+            .min_inner_size(MENU_WIDTH as f64, MENU_HEIGHT as f64)
+            .resizable(false)
+            .maximizable(false)
+            .minimizable(false)
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .focused(true)
+            .visible(false)
+            .build()
+            .map_err(|e| format!("build menu: {}", e))?
     };
 
     // Remove Windows 11 accent-color border
@@ -339,22 +419,40 @@ pub fn set_window_size(app: tauri::AppHandle, width: i32, height: i32) -> Result
         .get_webview_window("main")
         .ok_or_else(|| "main window not found".to_string())?;
 
+    let scale_factor = window.scale_factor().unwrap_or(1.0);
+    let physical_width = (width as f64 * scale_factor) as i32;
+    let physical_height = (height as f64 * scale_factor) as i32;
+
     unsafe {
+        use windows::Win32::Foundation::{HWND, RECT};
         use windows::Win32::UI::WindowsAndMessaging::*;
-        use windows::Win32::Foundation::HWND;
         let hwnd = match window.hwnd() {
             Ok(h) => HWND(h.0),
             Err(e) => return Err(format!("hwnd: {}", e)),
         };
+
+        let mut rect_window = RECT::default();
+        let mut rect_client = RECT::default();
+        let _ = GetWindowRect(hwnd, &mut rect_window);
+        let _ = GetClientRect(hwnd, &mut rect_client);
+
+        let border_width =
+            (rect_window.right - rect_window.left) - (rect_client.right - rect_client.left);
+        let border_height =
+            (rect_window.bottom - rect_window.top) - (rect_client.bottom - rect_client.top);
+
+        let adjusted_width = physical_width + border_width;
+        let adjusted_height = physical_height + border_height;
+
         let screen_w = GetSystemMetrics(SM_CXSCREEN);
-        let x = (screen_w - width) / 2;
+        let x = (screen_w - adjusted_width) / 2;
         let _ = SetWindowPos(
             hwnd,
             HWND_TOPMOST,
             x,
             0,
-            width,
-            height,
+            adjusted_width,
+            adjusted_height,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
         );
     }

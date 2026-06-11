@@ -33,7 +33,8 @@ pub fn run() {
         })
         .setup(move |app| {
             let window = app.get_webview_window("main").unwrap();
-            app_bar::register_app_bar(&window, config.bar_height, config.desktop_count)?;
+            let desktop_count = desktop::get_desktop_count().unwrap_or(4);
+            app_bar::register_app_bar(&window, config.bar_height, desktop_count)?;
 
             // Start desktop listener thread
             let app_handle = app.handle().clone();

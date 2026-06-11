@@ -3,9 +3,9 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub bar_height: i32,
-    pub desktop_count: i32,
     pub split_ratio_x: i32,
     pub split_ratio_y: i32,
     pub exclude_titles: Vec<String>,
@@ -20,7 +20,6 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             bar_height: 40,
-            desktop_count: 4,
             split_ratio_x: 50,
             split_ratio_y: 50,
             exclude_titles: vec![],
