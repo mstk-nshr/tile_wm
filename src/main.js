@@ -110,6 +110,12 @@ async function loadConfig() {
     config = await invoke("get_config");
     if (config && config.bar_height) {
       taskbar.style.height = `${config.bar_height}px`;
+      // Adjust button & icon size relative to bar_height (1px margin each side)
+      const btnSize = config.bar_height - 2;
+      const iconSize = Math.round(btnSize * 0.64);
+      taskbar.style.setProperty('--bar-height', `${config.bar_height}px`);
+      taskbar.style.setProperty('--btn-size', `${btnSize}px`);
+      taskbar.style.setProperty('--icon-size', `${iconSize}px`);
     }
   } catch (e) {
     console.error("Failed to load config:", e);
