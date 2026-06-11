@@ -63,8 +63,19 @@ async function init() {
 
   // Tiling mode switching
   tilingBtns.forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", async (e) => {
       const mode = btn.dataset.mode;
+      // CTRL+click on 2/3/4Win toggles flip_main
+      if (e.ctrlKey && mode !== "free") {
+        try {
+          await invoke("toggle_flip_main");
+          // Re-apply tiling with new flip state
+          await invoke("apply_tiling");
+        } catch (e2) {
+          console.error("toggle_flip_main failed:", e2);
+        }
+        return;
+      }
       if (mode === currentMode) {
         // Same mode clicked again — cycle the layout
         try {
@@ -79,8 +90,18 @@ async function init() {
     });
   });
   floatTilingBtns.forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", async (e) => {
       const mode = btn.dataset.mode;
+      // CTRL+click on 2/3/4Win toggles flip_main
+      if (e.ctrlKey && mode !== "free") {
+        try {
+          await invoke("toggle_flip_main");
+          await invoke("apply_tiling");
+        } catch (e2) {
+          console.error("toggle_flip_main failed:", e2);
+        }
+        return;
+      }
       if (mode === currentMode) {
         try {
           await invoke("cycle_tiling_layout");

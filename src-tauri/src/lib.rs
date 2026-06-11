@@ -66,6 +66,7 @@ pub fn run() {
             commands::hide_menu_window,
             commands::quit_app,
             commands::set_window_size,
+            commands::toggle_flip_main,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

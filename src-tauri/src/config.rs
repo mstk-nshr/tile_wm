@@ -14,6 +14,7 @@ pub struct Config {
     pub float_y: f64,
     pub float_width: f64,
     pub float_bg_rgba: [u8; 4],
+    pub flip_main: bool,
 }
 
 impl Default for Config {
@@ -28,6 +29,7 @@ impl Default for Config {
             float_y: 100.0,
             float_width: 570.0,
             float_bg_rgba: [32, 32, 32, 255],
+            flip_main: false,
         }
     }
 }

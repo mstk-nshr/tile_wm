@@ -40,6 +40,7 @@ pub struct TilingConfig {
     pub monitor_h: i32,
     pub split_ratio_x: i32,
     pub split_ratio_y: i32,
+    pub flip_main: bool,
 }
 
 pub fn calculate_tiles(
@@ -52,7 +53,7 @@ pub fn calculate_tiles(
     let work_y = config.monitor_y + bar_height;
     let work_h = config.monitor_h - bar_height;
 
-    match mode {
+    let mut tiles = match mode {
         TilingMode::Free => vec![],
 
         TilingMode::TwoWindows => {
@@ -227,5 +228,15 @@ pub fn calculate_tiles(
                 }
             }
         }
+    };
+
+    // Apply horizontal flip if enabled — mirror all tiles across the monitor center
+    if config.flip_main {
+        for tile in &mut tiles {
+            let right = tile.x + tile.width;
+            tile.x = config.monitor_x + (config.monitor_w - (right - config.monitor_x));
+        }
     }
+
+    tiles
 }

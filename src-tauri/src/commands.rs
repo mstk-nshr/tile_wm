@@ -25,6 +25,7 @@ pub struct ConfigResponse {
     pub float_y: f64,
     pub float_width: f64,
     pub float_bg_rgba: [u8; 4],
+    pub flip_main: bool,
 }
 
 #[tauri::command]
@@ -40,6 +41,7 @@ pub fn get_config(state: State<AppState>) -> ConfigResponse {
         float_y: config.float_y,
         float_width: config.float_width,
         float_bg_rgba: config.float_bg_rgba,
+        flip_main: config.flip_main,
     }
 }
 
@@ -58,6 +60,7 @@ pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: 
         config.float_y = new_config.float_y;
         config.float_width = new_config.float_width;
         config.float_bg_rgba = new_config.float_bg_rgba;
+        config.flip_main = new_config.flip_main;
         config::save_config(&config);
     }
 
@@ -284,6 +287,7 @@ pub fn apply_tiling(state: State<AppState>) -> bool {
         monitor_h: monitor_h as i32,
         split_ratio_x: config.split_ratio_x,
         split_ratio_y: config.split_ratio_y,
+        flip_main: config.flip_main,
     };
 
     let tiles = tiling::calculate_tiles(mode, config_tiling, filtered.len());
@@ -576,4 +580,19 @@ pub fn toggle_devtools_size(app: tauri::AppHandle, state: State<AppState>) -> Re
         }
     }
     Ok(())
+}
+
+/// Toggle the flip_main flag — reverses the main window position (left↔right)
+/// in the tiling layout. The setting is persisted to config and all tiled windows
+/// are immediately updated.
+#[tauri::command]
+pub fn toggle_flip_main(state: State<AppState>) -> bool {
+    let flipped;
+    {
+        let mut config = state.config.lock().unwrap();
+        config.flip_main = !config.flip_main;
+        flipped = config.flip_main;
+        config::save_config(&config);
+    }
+    flipped
 }
