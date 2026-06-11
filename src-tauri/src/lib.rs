@@ -11,6 +11,7 @@ pub struct AppState {
     pub config: Mutex<config::Config>,
     pub current_desktop: Mutex<i32>,
     pub tiling_mode: Mutex<tiling::TilingMode>,
+    pub tiling_cycle: Mutex<i32>,
     pub float_window_pos: Mutex<(f64, f64)>,
 }
 
@@ -29,6 +30,7 @@ pub fn run() {
             config: Mutex::new(config.clone()),
             current_desktop: Mutex::new(initial_desktop),
             tiling_mode: Mutex::new(tiling::TilingMode::Free),
+            tiling_cycle: Mutex::new(0),
             float_window_pos: Mutex::new(float_pos),
         })
         .setup(move |app| {
@@ -52,8 +54,10 @@ pub fn run() {
             commands::switch_desktop,
             commands::get_tiling_mode,
             commands::set_tiling_mode,
+            commands::cycle_tiling_layout,
             commands::apply_tiling,
             commands::get_window_list,
+            commands::debug_window_list,
             commands::set_float_pos,
             commands::open_config_file,
             commands::show_menu_window,

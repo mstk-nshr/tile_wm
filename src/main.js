@@ -63,15 +63,34 @@ async function init() {
 
   // Tiling mode switching
   tilingBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const mode = btn.dataset.mode;
-      setTilingMode(mode);
+      if (mode === currentMode) {
+        // Same mode clicked again — cycle the layout
+        try {
+          await invoke("cycle_tiling_layout");
+          await invoke("apply_tiling");
+        } catch (e) {
+          console.error("Cycle layout failed:", e);
+        }
+      } else {
+        await setTilingMode(mode);
+      }
     });
   });
   floatTilingBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const mode = btn.dataset.mode;
-      setTilingMode(mode);
+      if (mode === currentMode) {
+        try {
+          await invoke("cycle_tiling_layout");
+          await invoke("apply_tiling");
+        } catch (e) {
+          console.error("Cycle layout failed:", e);
+        }
+      } else {
+        await setTilingMode(mode);
+      }
     });
   });
 
@@ -273,4 +292,47 @@ window.addEventListener("keydown", async (e) => {
       console.error("Failed to hide menu window via ESC:", err);
     }
   }
+  // F12 or Ctrl+D: dump detected windows to console
+  if (e.key === "F12" || (e.ctrlKey && e.key === "d")) {
+    e.preventDefault();
+    await debugDumpWindows();
+  }
 });
+
+/// Debug helper: print ALL detected windows (including cloaked) to the browser console.
+/// Open DevTools (F12) after pressing F12 or Ctrl+D to see the list.
+async function debugDumpWindows() {
+  try {
+    const allWindows = await invoke("debug_window_list");
+    console.log("═══════════════════════════════════════════");
+    console.log("ALL windows detected by EnumWindows:", allWindows.length);
+    console.table(
+      allWindows.map((w, i) => ({
+        "#": i,
+        hwnd: w.hwnd,
+        title: w.title?.substring(0, 60),
+        process: w.process_name,
+        cloaked: w.is_cloaked,
+        minimized: w.is_minimized,
+      }))
+    );
+    const tiledWindows = allWindows.filter((w) => !w.is_cloaked);
+    console.log("Windows used for tiling (non-cloaked):", tiledWindows.length);
+    console.table(
+      tiledWindows.map((w, i) => ({
+        "#": i,
+        title: w.title?.substring(0, 60),
+        process: w.process_name,
+      }))
+    );
+    console.log("═══════════════════════════════════════════");
+    alert(
+      `Window diagnostics written to browser console.\n\n` +
+      `Total EnumWindows: ${allWindows.length}\n` +
+      `Non-cloaked (tiling target): ${tiledWindows.length}\n\n` +
+      `Open DevTools (F12) → Console tab to see details.`
+    );
+  } catch (e) {
+    console.error("debugDumpWindows failed:", e);
+  }
+}

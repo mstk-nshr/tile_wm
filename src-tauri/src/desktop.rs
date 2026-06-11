@@ -2,6 +2,7 @@ use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::Win32::System::Threading::*;
 use windows::Win32::System::Registry::*;
+use windows::Win32::Graphics::Dwm::DwmGetWindowAttribute;
 use windows::core::{w, PWSTR};
 use tauri::{Emitter, Manager};
 
@@ -244,6 +245,7 @@ pub struct WindowInfo {
     pub rect: (i32, i32, i32, i32),
     pub is_visible: bool,
     pub is_minimized: bool,
+    pub is_cloaked: bool,
 }
 
 pub fn get_visible_windows() -> Vec<WindowInfo> {
@@ -269,6 +271,19 @@ unsafe extern "system" fn enum_window_callback(hwnd: HWND, lparam: LPARAM) -> BO
     // Skip tool windows
     let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
     if ex_style & (WS_EX_TOOLWINDOW.0 as i32) != 0 {
+        return TRUE;
+    }
+
+    // Skip cloaked windows (Windows 11 virtual desktop ghosts,
+    // background app windows that are visually hidden but still return IsWindowVisible=TRUE)
+    let mut is_cloaked: BOOL = BOOL::default();
+    let _ = DwmGetWindowAttribute(
+        hwnd,
+        windows::Win32::Graphics::Dwm::DWMWINDOWATTRIBUTE(14), // DWMWA_CLOAKED
+        &mut is_cloaked as *mut BOOL as *mut std::ffi::c_void,
+        std::mem::size_of::<BOOL>() as u32,
+    );
+    if is_cloaked.as_bool() {
         return TRUE;
     }
 
@@ -311,6 +326,7 @@ unsafe extern "system" fn enum_window_callback(hwnd: HWND, lparam: LPARAM) -> BO
         rect: (rect.left, rect.top, rect.right, rect.bottom),
         is_visible: true,
         is_minimized,
+        is_cloaked: is_cloaked.as_bool(),
     });
 
     TRUE

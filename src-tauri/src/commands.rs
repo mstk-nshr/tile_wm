@@ -233,6 +233,16 @@ pub fn set_tiling_mode(state: State<AppState>, mode: String) {
     let new_mode: tiling::TilingMode =
         serde_json::from_str(&mode).unwrap_or(tiling::TilingMode::Free);
     *state.tiling_mode.lock().unwrap() = new_mode;
+    // Reset cycle when mode changes
+    *state.tiling_cycle.lock().unwrap() = 0;
+}
+
+/// Cycle the window-to-tile assignment so the main region gets a different window.
+/// The cycle wraps around based on how many windows are being tiled.
+#[tauri::command]
+pub fn cycle_tiling_layout(state: State<AppState>) {
+    let mut cycle = state.tiling_cycle.lock().unwrap();
+    *cycle += 1;
 }
 
 #[tauri::command]
@@ -243,17 +253,21 @@ pub fn apply_tiling(state: State<AppState>) -> bool {
     // Get visible windows on current desktop
     let windows = desktop::get_visible_windows();
 
-    // Filter excluded windows
-    let filtered: Vec<_> = windows
+    // Filter excluded and cloaked windows
+    let mut filtered: Vec<_> = windows
         .iter()
         .filter(|w| {
-            !config
-                .exclude_processes
-                .iter()
-                .any(|p| w.process_name.contains(p))
+            !w.is_cloaked
+                && !config
+                    .exclude_processes
+                    .iter()
+                    .any(|p| w.process_name.contains(p))
                 && !config.exclude_titles.iter().any(|t| w.title.contains(t))
         })
         .collect();
+
+    // Sort by HWND for a stable order across cycles (EnumWindows order is not guaranteed)
+    filtered.sort_by_key(|w| w.hwnd);
 
     if filtered.is_empty() {
         return false;
@@ -274,13 +288,15 @@ pub fn apply_tiling(state: State<AppState>) -> bool {
 
     let tiles = tiling::calculate_tiles(mode, config_tiling, filtered.len());
 
-    // Apply tile positions to windows
-    for (i, tile) in tiles.iter().enumerate() {
-        if i >= filtered.len() {
-            break;
-        }
+    // Apply tile positions to windows with cycle offset so the "main" region
+    // rotates among windows each time the user re-clicks the mode button.
+    let cycle = *state.tiling_cycle.lock().unwrap();
+    let n = tiles.len().min(filtered.len());
 
-        let window_info = filtered[i];
+    for i in 0..n {
+        let src_idx = (i + cycle as usize) % filtered.len();
+        let window_info = filtered[src_idx];
+        let tile = &tiles[i];
 
         unsafe {
             let hwnd: HWND = std::mem::transmute(window_info.hwnd);
@@ -312,13 +328,21 @@ pub fn get_window_list(state: State<AppState>) -> Vec<desktop::WindowInfo> {
     windows
         .into_iter()
         .filter(|w| {
-            !config
-                .exclude_processes
-                .iter()
-                .any(|p| w.process_name.contains(p))
+            !w.is_cloaked
+                && !config
+                    .exclude_processes
+                    .iter()
+                    .any(|p| w.process_name.contains(p))
                 && !config.exclude_titles.iter().any(|t| w.title.contains(t))
         })
         .collect()
+}
+
+/// Debug: return ALL visible windows including cloaked ones, with cloaked status.
+/// Useful to understand what windows EnumWindows detects on the current desktop.
+#[tauri::command]
+pub fn debug_window_list() -> Vec<desktop::WindowInfo> {
+    desktop::get_visible_windows()
 }
 
 #[tauri::command]
