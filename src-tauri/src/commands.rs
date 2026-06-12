@@ -594,5 +594,7 @@ pub fn toggle_flip_main(state: State<AppState>) -> bool {
         flipped = config.flip_main;
         config::save_config(&config);
     }
+    // Reset cycle so flip swaps main↔sub directly instead of cycling
+    *state.tiling_cycle.lock().unwrap() = 0;
     flipped
 }

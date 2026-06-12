@@ -68,9 +68,11 @@ async function init() {
       // CTRL+click on 2/3/4Win toggles flip_main
       if (e.ctrlKey && mode !== "free") {
         try {
-          await invoke("toggle_flip_main");
+          const flipped = await invoke("toggle_flip_main");
+          if (config) config.flip_main = flipped;
           // Re-apply tiling with new flip state
           await invoke("apply_tiling");
+          updateTilingIcons();
         } catch (e2) {
           console.error("toggle_flip_main failed:", e2);
         }
@@ -95,8 +97,10 @@ async function init() {
       // CTRL+click on 2/3/4Win toggles flip_main
       if (e.ctrlKey && mode !== "free") {
         try {
-          await invoke("toggle_flip_main");
+          const flipped = await invoke("toggle_flip_main");
+          if (config) config.flip_main = flipped;
           await invoke("apply_tiling");
+          updateTilingIcons();
         } catch (e2) {
           console.error("toggle_flip_main failed:", e2);
         }
@@ -157,8 +161,30 @@ async function loadConfig() {
       taskbar.style.setProperty('--btn-size', `${btnSize}px`);
       taskbar.style.setProperty('--icon-size', `${iconSize}px`);
     }
+    updateTilingIcons();
   } catch (e) {
     console.error("Failed to load config:", e);
+  }
+}
+
+function tilingIconName(mode) {
+  const suffix = config?.flip_main ? "-R.png" : ".png";
+  switch (mode) {
+    case "2windows": return "/icons/2Win" + suffix;
+    case "3windows": return "/icons/3Win" + suffix;
+    case "4windows": return "/icons/4Win" + suffix;
+    default: return "/icons/free.png";
+  }
+}
+
+function updateTilingIcons() {
+  const modeToId = { "2windows": "tiling-2w", "3windows": "tiling-3w", "4windows": "tiling-4w" };
+  for (const [mode, id] of Object.entries(modeToId)) {
+    const btn = document.getElementById(id);
+    if (btn) {
+      const img = btn.querySelector(".icon img");
+      if (img) img.src = tilingIconName(mode);
+    }
   }
 }
 
