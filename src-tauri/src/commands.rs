@@ -129,96 +129,23 @@ pub fn switch_desktop(number: i32, state: State<AppState>) -> bool {
         return true;
     }
 
-    unsafe {
-        use windows::Win32::UI::Input::KeyboardAndMouse::*;
-
-        let press_mods = [
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_CONTROL,
-                        wScan: 0,
-                        dwFlags: KEYBD_EVENT_FLAGS(0),
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_LWIN,
-                        wScan: 0,
-                        dwFlags: KEYBD_EVENT_FLAGS(0),
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-        ];
-        let _ = SendInput(&press_mods, std::mem::size_of::<INPUT>() as i32);
-
-        let arrow = if number > current { VK_RIGHT } else { VK_LEFT };
-
-        for _ in 0..diff {
-            let strike = [
-                INPUT {
-                    r#type: INPUT_KEYBOARD,
-                    Anonymous: INPUT_0 {
-                        ki: KEYBDINPUT {
-                            wVk: arrow,
-                            wScan: 0,
-                            dwFlags: KEYBD_EVENT_FLAGS(0),
-                            time: 0,
-                            dwExtraInfo: 0,
-                        },
-                    },
-                },
-                INPUT {
-                    r#type: INPUT_KEYBOARD,
-                    Anonymous: INPUT_0 {
-                        ki: KEYBDINPUT {
-                            wVk: arrow,
-                            wScan: 0,
-                            dwFlags: KEYEVENTF_KEYUP,
-                            time: 0,
-                            dwExtraInfo: 0,
-                        },
-                    },
-                },
-            ];
-            let _ = SendInput(&strike, std::mem::size_of::<INPUT>() as i32);
+    let desktops = match winvd::get_desktops() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("[tile_wm] switch_desktop: failed to get desktops: {:?}", e);
+            return false;
         }
+    };
 
-        let release_mods = [
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_LWIN,
-                        wScan: 0,
-                        dwFlags: KEYEVENTF_KEYUP,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_CONTROL,
-                        wScan: 0,
-                        dwFlags: KEYEVENTF_KEYUP,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-        ];
-        let _ = SendInput(&release_mods, std::mem::size_of::<INPUT>() as i32);
+    let target_index = (number - 1) as usize;
+    if target_index < desktops.len() {
+        if let Err(e) = winvd::switch_desktop(desktops[target_index]) {
+            eprintln!("[tile_wm] switch_desktop: failed to switch: {:?}", e);
+            return false;
+        }
+    } else {
+        eprintln!("[tile_wm] switch_desktop: index {} out of bounds", target_index);
+        return false;
     }
 
     *state.current_desktop.lock().unwrap() = number;

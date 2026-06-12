@@ -3,6 +3,7 @@ mod desktop;
 pub mod tiling;
 mod config;
 mod commands;
+mod hotkey;
 
 use tauri::Manager;
 use std::sync::Mutex;
@@ -42,6 +43,12 @@ pub fn run() {
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
                 desktop::listen_desktop_switch(app_handle, initial_desktop_for_thread);
+            });
+
+            // Start global hotkey hook thread (Ctrl+Alt+Win+F12/F11)
+            let app_handle_hotkey = app.handle().clone();
+            std::thread::spawn(move || {
+                hotkey::install_hotkey_hook(app_handle_hotkey);
             });
 
             Ok(())
