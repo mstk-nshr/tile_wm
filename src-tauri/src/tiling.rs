@@ -58,16 +58,16 @@ pub fn calculate_tiles(
 
         TilingMode::TwoWindows => {
             let ratio = config.split_ratio_x as f64 / 100.0;
+            let left_w = (config.monitor_w as f64 * ratio) as i32;
             if window_count <= 1 {
                 vec![TileRegion {
                     x: config.monitor_x,
                     y: work_y,
-                    width: config.monitor_w,
+                    width: left_w,
                     height: work_h,
                 }]
             } else {
                 // Left main + right
-                let left_w = (config.monitor_w as f64 * ratio) as i32;
                 vec![
                     TileRegion {
                         x: config.monitor_x,
@@ -87,11 +87,12 @@ pub fn calculate_tiles(
 
         TilingMode::ThreeWindows => {
             let ratio_x = config.split_ratio_x as f64 / 100.0;
+            let left_w = (config.monitor_w as f64 * ratio_x) as i32;
             if window_count <= 1 {
                 vec![TileRegion {
                     x: config.monitor_x,
                     y: work_y,
-                    width: config.monitor_w,
+                    width: left_w,
                     height: work_h,
                 }]
             } else if window_count == 2 {
@@ -141,14 +142,16 @@ pub fn calculate_tiles(
         TilingMode::FourWindows => {
             let ratio_x = config.split_ratio_x as f64 / 100.0;
             let ratio_y = config.split_ratio_y as f64 / 100.0;
+            let left_w = (config.monitor_w as f64 * ratio_x) as i32;
+            let top_h = (work_h as f64 * ratio_y) as i32;
 
             match window_count {
                 0..=1 => {
                     vec![TileRegion {
                         x: config.monitor_x,
                         y: work_y,
-                        width: config.monitor_w,
-                        height: work_h,
+                        width: left_w,
+                        height: top_h,
                     }]
                 }
                 2 => {
