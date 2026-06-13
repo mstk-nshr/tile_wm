@@ -336,10 +336,21 @@ async function updateDesktopIcons() {
     if (fp === _lastAppsKey) return;
     _lastAppsKey = fp;
 
+    // First, clear icons for all desktops (handles the case where ALL apps
+    // on a desktop are gone and the Rust backend returns an empty HashMap,
+    // i.e. the desktop key no longer exists in the response).
+    for (const btn of desktopBtns) {
+      const num = btn.dataset.desktop;
+      const iconsDiv = document.getElementById(`desktop-icons-${num}`);
+      if (iconsDiv) {
+        iconsDiv.innerHTML = "";
+      }
+    }
+
+    // Then re-populate icons for desktops that have apps
     for (const [numStr, apps] of Object.entries(desktopApps)) {
       const iconsDiv = document.getElementById(`desktop-icons-${numStr}`);
       if (iconsDiv) {
-        iconsDiv.innerHTML = "";
         for (const app of apps) {
           if (app.icon_base64) {
             const btn = document.createElement("button");
