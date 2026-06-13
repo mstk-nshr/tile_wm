@@ -31,6 +31,7 @@ windows = { version = "0.58", features = [
     "Win32_System_Registry",
     "Win32_Storage",
     "Win32_Storage_FileSystem",
+    "Win32_Storage_Packaging_Appx",
 ] }
 log = "0.4"
 open = "5"

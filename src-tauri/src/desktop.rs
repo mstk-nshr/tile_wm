@@ -5,6 +5,7 @@ use windows::Win32::System::Registry::*;
 use windows::Win32::Graphics::Dwm::DwmGetWindowAttribute;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::UI::Shell::*;
+use windows::Win32::Storage::Packaging::Appx::*;
 use windows::core::{w, PWSTR, PCWSTR};
 use tauri::{Emitter, Manager};
 
@@ -441,6 +442,53 @@ fn get_process_icon(process_path: &str) -> Option<HICON> {
     }
 }
 
+unsafe extern "system" fn enum_child_icon_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let found_icon = &mut *(lparam.0 as *mut Option<HICON>);
+    
+    let mut result: usize = 0;
+    let res = SendMessageTimeoutW(
+        hwnd,
+        WM_GETICON,
+        WPARAM(2), // ICON_SMALL2
+        LPARAM(0),
+        SMTO_ABORTIFHUNG,
+        50,
+        Some(&mut result),
+    );
+    if res.0 != 0 && result != 0 {
+        *found_icon = Some(HICON(result as *mut std::ffi::c_void));
+        return FALSE;
+    }
+
+    let res = SendMessageTimeoutW(
+        hwnd,
+        WM_GETICON,
+        WPARAM(0), // ICON_SMALL
+        LPARAM(0),
+        SMTO_ABORTIFHUNG,
+        50,
+        Some(&mut result),
+    );
+    if res.0 != 0 && result != 0 {
+        *found_icon = Some(HICON(result as *mut std::ffi::c_void));
+        return FALSE;
+    }
+
+    let hicon = GetClassLongPtrW(hwnd, GCLP_HICONSM);
+    if hicon != 0 {
+        *found_icon = Some(HICON(hicon as *mut std::ffi::c_void));
+        return FALSE;
+    }
+
+    let hicon = GetClassLongPtrW(hwnd, GCLP_HICON);
+    if hicon != 0 {
+        *found_icon = Some(HICON(hicon as *mut std::ffi::c_void));
+        return FALSE;
+    }
+
+    TRUE
+}
+
 fn get_window_icon(hwnd: HWND) -> Option<HICON> {
     unsafe {
         let mut result: usize = 0;
@@ -478,6 +526,226 @@ fn get_window_icon(hwnd: HWND) -> Option<HICON> {
         let hicon = GetClassLongPtrW(hwnd, GCLP_HICON);
         if hicon != 0 {
             return Some(HICON(hicon as *mut std::ffi::c_void));
+        }
+
+        let mut found_icon: Option<HICON> = None;
+        let _ = EnumChildWindows(
+            hwnd,
+            Some(enum_child_icon_callback),
+            LPARAM(&mut found_icon as *mut Option<HICON> as isize),
+        );
+        if found_icon.is_some() {
+            return found_icon;
+        }
+    }
+    None
+}
+
+fn get_uwp_process_id(hwnd: HWND) -> Option<u32> {
+    let mut frame_pid = 0u32;
+    unsafe {
+        GetWindowThreadProcessId(hwnd, Some(&mut frame_pid));
+    }
+    if frame_pid == 0 {
+        return None;
+    }
+
+    struct Ctx {
+        frame_pid: u32,
+        real_pid: Option<u32>,
+    }
+
+    unsafe extern "system" fn child_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let ctx = &mut *(lparam.0 as *mut Ctx);
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        if pid != 0 && pid != ctx.frame_pid {
+            ctx.real_pid = Some(pid);
+            return BOOL(0); // stop enumerating
+        }
+        BOOL(1)
+    }
+
+    let mut ctx = Ctx {
+        frame_pid,
+        real_pid: None,
+    };
+    unsafe {
+        let _ = EnumChildWindows(hwnd, Some(child_proc), LPARAM(&mut ctx as *mut _ as isize));
+    }
+    ctx.real_pid
+}
+
+fn get_package_name_for_pid(pid: u32) -> Option<String> {
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
+
+        let mut length = 0u32;
+        let _ = GetPackageFullName(handle, &mut length, PWSTR::null());
+        if length == 0 {
+            let _ = CloseHandle(handle);
+            return None;
+        }
+
+        let mut buffer = vec![0u16; length as usize];
+        let result = GetPackageFullName(handle, &mut length, PWSTR::from_raw(buffer.as_mut_ptr()));
+        let _ = CloseHandle(handle);
+
+        if result.is_err() {
+            return None;
+        }
+
+        let name_len = if length > 0 { (length - 1) as usize } else { 0 };
+        Some(String::from_utf16_lossy(&buffer[..name_len]))
+    }
+}
+
+fn get_package_install_path(full_name: &str) -> Option<std::path::PathBuf> {
+    let wide: Vec<u16> = full_name.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        let mut length = 0u32;
+        let _ = GetPackagePathByFullName(
+            PCWSTR::from_raw(wide.as_ptr()),
+            &mut length,
+            PWSTR::null(),
+        );
+        if length == 0 {
+            return None;
+        }
+
+        let mut buffer = vec![0u16; length as usize];
+        let result = GetPackagePathByFullName(
+            PCWSTR::from_raw(wide.as_ptr()),
+            &mut length,
+            PWSTR::from_raw(buffer.as_mut_ptr()),
+        );
+        if result.is_err() {
+            return None;
+        }
+
+        let path_len = if length > 0 { (length - 1) as usize } else { 0 };
+        let path_str = String::from_utf16_lossy(&buffer[..path_len]);
+        Some(std::path::PathBuf::from(path_str))
+    }
+}
+
+fn parse_logo_from_manifest(manifest_path: &std::path::Path) -> Option<String> {
+    let content = std::fs::read_to_string(manifest_path).ok()?;
+    for attr in &["Square44x44Logo", "Square150x150Logo"] {
+        let pattern = format!("{}=\"", attr);
+        if let Some(start) = content.find(&pattern) {
+            let value_start = start + pattern.len();
+            if let Some(end) = content[value_start..].find('"') {
+                let logo_path = &content[value_start..value_start + end];
+                return Some(logo_path.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn find_best_logo_file(
+    package_dir: &std::path::Path,
+    logo_relative: &str,
+) -> Option<std::path::PathBuf> {
+    let logo_path = package_dir.join(logo_relative.replace('/', "\\"));
+    if logo_path.is_file() {
+        return Some(logo_path);
+    }
+
+    let parent = logo_path.parent()?;
+    let stem = logo_path.file_stem()?.to_str()?;
+    let ext = logo_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png");
+
+    if !parent.is_dir() {
+        return None;
+    }
+
+    let mut candidates: Vec<(u32, std::path::PathBuf)> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(parent) {
+        for entry in entries.flatten() {
+            let file_name = entry.file_name();
+            let name = file_name.to_string_lossy();
+            if name.starts_with(stem) && name.ends_with(&format!(".{}", ext)) {
+                if let Some(scale_str) = name
+                    .strip_prefix(stem)
+                    .and_then(|s| s.strip_suffix(&format!(".{}", ext)))
+                {
+                    let num_str = scale_str.trim_start_matches(|c: char| !c.is_ascii_digit());
+                    if let Ok(scale) = num_str.parse::<u32>() {
+                        candidates.push((scale, entry.path()));
+                    } else {
+                        candidates.push((0, entry.path()));
+                    }
+                }
+            }
+        }
+    }
+
+    candidates.sort_by_key(|(scale, _)| {
+        if *scale == 0 {
+            10000u32
+        } else {
+            (*scale as i32 - 200).unsigned_abs()
+        }
+    });
+
+    candidates.into_iter().next().map(|(_, path)| path)
+}
+
+fn get_uwp_icon_base64(hwnd: HWND) -> Option<String> {
+    let pid = get_uwp_process_id(hwnd).or_else(|| {
+        let mut pid = 0u32;
+        unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)); }
+        if pid != 0 { Some(pid) } else { None }
+    })?;
+
+    let package_name = get_package_name_for_pid(pid)?;
+    let package_dir = get_package_install_path(&package_name)?;
+    let manifest_path = package_dir.join("AppxManifest.xml");
+    let logo_relative = parse_logo_from_manifest(&manifest_path)?;
+    let logo_file = find_best_logo_file(&package_dir, &logo_relative)?;
+    
+    if let Ok(png_bytes) = std::fs::read(&logo_file) {
+        Some(format!("data:image/png;base64,{}", base64_encode(&png_bytes)))
+    } else {
+        None
+    }
+}
+
+unsafe extern "system" fn enum_child_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let target_pid = &mut *(lparam.0 as *mut u32);
+    let mut pid = 0;
+    GetWindowThreadProcessId(hwnd, Some(&mut pid));
+    if pid > 0 {
+        if pid != *target_pid {
+            *target_pid = pid;
+            return FALSE;
+        }
+    }
+    TRUE
+}
+
+fn get_real_uwp_process_path(hwnd: HWND, frame_host_pid: u32) -> Option<String> {
+    unsafe {
+        let mut real_pid = frame_host_pid;
+        let _ = EnumChildWindows(
+            hwnd,
+            Some(enum_child_windows_callback),
+            LPARAM(&mut real_pid as *mut u32 as isize),
+        );
+        
+        if real_pid != frame_host_pid && real_pid > 0 {
+            if let Ok(proc) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, real_pid) {
+                let mut buf = [0u16; 260];
+                let mut size = buf.len() as u32;
+                let _ = QueryFullProcessImageNameW(proc, PROCESS_NAME_FORMAT(0), PWSTR(buf.as_mut_ptr()), &mut size);
+                let _ = CloseHandle(proc);
+                return Some(String::from_utf16_lossy(&buf[..size as usize]));
+            }
         }
     }
     None
@@ -517,6 +785,16 @@ unsafe extern "system" fn enum_all_windows_callback(hwnd: HWND, lparam: LPARAM) 
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
+
+            if process_name == "ApplicationFrameHost.exe" {
+                if let Some(real_path) = get_real_uwp_process_path(hwnd, pid) {
+                    process_path = real_path;
+                    process_name = std::path::Path::new(&process_path)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_default();
+                }
+            }
         }
     }
 
@@ -529,10 +807,6 @@ pub fn get_all_desktops_apps(
     exclude_titles: &[String],
 ) -> std::collections::HashMap<i32, Vec<DesktopApp>> {
     let mut map: std::collections::HashMap<i32, Vec<DesktopApp>> = std::collections::HashMap::new();
-    let desktops = match winvd::get_desktops() {
-        Ok(d) => d,
-        Err(_) => return map,
-    };
 
     let mut windows: Vec<(HWND, String, String, String)> = Vec::new();
     unsafe {
@@ -545,21 +819,30 @@ pub fn get_all_desktops_apps(
     for (hwnd, title, process_name, process_path) in windows {
         if exclude_processes.iter().any(|p| process_name.contains(p))
             || exclude_titles.iter().any(|t| title.contains(t))
+            || process_name == "ApplicationFrameHost.exe"
         {
             continue;
         }
 
-        for (idx, &d) in desktops.iter().enumerate() {
-            let desktop_num = (idx + 1) as i32;
-            if winvd::is_window_on_desktop(d, hwnd).unwrap_or(false) {
+        if let Ok(desktop) = winvd::get_desktop_by_window(hwnd) {
+            if let Ok(desktop_idx) = desktop.get_index() {
+                let desktop_num = (desktop_idx + 1) as i32;
+
                 let apps = map.entry(desktop_num).or_default();
                 if !apps.iter().any(|app| app.process_name == process_name) {
                     let mut icon_base64 = None;
 
-                    if let Some(hicon) = get_window_icon(hwnd) {
-                        icon_base64 = hicon_to_bmp_base64(hicon);
+                    // 1. UWP公式PNGアイコンの取得を最優先で試みる
+                    icon_base64 = get_uwp_icon_base64(hwnd);
+
+                    // 2. 失敗した場合は通常のウィンドウアイコンを試みる
+                    if icon_base64.is_none() {
+                        if let Some(hicon) = get_window_icon(hwnd) {
+                            icon_base64 = hicon_to_bmp_base64(hicon);
+                        }
                     }
 
+                    // 3. それでもダメならプロセスの実行パスから
                     if icon_base64.is_none() && !process_path.is_empty() {
                         if let Some(hicon) = get_process_icon(&process_path) {
                             icon_base64 = hicon_to_bmp_base64(hicon);
