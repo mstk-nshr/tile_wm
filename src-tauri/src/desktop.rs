@@ -205,34 +205,28 @@ fn hex_str_to_bytes(s: &str) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
+/// Poll the Windows registry for the current virtual desktop number.
+/// When it changes (user pressed Ctrl+Win+Arrow or switched via Task View),
+/// update AppState and emit a "desktop-changed" event to the frontend.
 pub fn listen_desktop_switch(app_handle: tauri::AppHandle, initial_desktop: i32) {
-    let mut last_fg_hwnd: isize = 0;
-    let mut desktop_counter: i32 = initial_desktop;
-    let mut last_switch_time = std::time::Instant::now();
+    let mut last_desktop: i32 = initial_desktop;
 
     loop {
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        std::thread::sleep(std::time::Duration::from_millis(500));
 
-        unsafe {
-            let fg = GetForegroundWindow();
-            let current_hwnd = fg.0 as isize;
+        let current = match get_current_desktop_number() {
+            Some(n) => n,
+            None => continue,
+        };
 
-            if current_hwnd != last_fg_hwnd {
-                let now = std::time::Instant::now();
-                let elapsed = now.duration_since(last_switch_time);
+        if current != last_desktop {
+            last_desktop = current;
 
-                if elapsed.as_millis() < 500 && current_hwnd != 0 && last_fg_hwnd != 0 {
-                    desktop_counter = (desktop_counter % 10) + 1;
-                    last_switch_time = now;
-
-                    let state = app_handle.state::<super::AppState>();
-                    if let Ok(mut current) = state.current_desktop.lock() {
-                        *current = desktop_counter;
-                        let _ = app_handle.emit("desktop-changed", desktop_counter);
-                    };
-                }
-                last_fg_hwnd = current_hwnd;
+            let state = app_handle.state::<super::AppState>();
+            if let Ok(mut desktop) = state.current_desktop.lock() {
+                *desktop = current;
             }
+            let _ = app_handle.emit("desktop-changed", current);
         }
     }
 }
