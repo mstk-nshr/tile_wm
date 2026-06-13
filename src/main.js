@@ -256,11 +256,20 @@ async function updateDesktopIcons() {
         iconsDiv.innerHTML = "";
         apps.forEach((app) => {
           if (app.icon_base64) {
+            const btn = document.createElement("button");
+            btn.className = "desktop-app-btn";
+            btn.title = app.process_name;
+            btn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              invoke("focus_window", { hwnd: app.hwnd });
+            });
+
             const img = document.createElement("img");
             img.className = "desktop-app-icon";
             img.src = app.icon_base64;
-            img.title = app.process_name;
-            iconsDiv.appendChild(img);
+            btn.appendChild(img);
+
+            iconsDiv.appendChild(btn);
           }
         });
       }

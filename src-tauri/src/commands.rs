@@ -594,3 +594,14 @@ pub fn toggle_flip_main(state: State<AppState>) -> bool {
     state.tiling_cycles.lock().unwrap().insert(desktop, 0);
     flipped
 }
+
+#[tauri::command]
+pub fn focus_window(hwnd: isize) {
+    unsafe {
+        let win_hwnd = HWND(hwnd as *mut std::ffi::c_void);
+        if IsIconic(win_hwnd).as_bool() {
+            let _ = ShowWindow(win_hwnd, SW_RESTORE);
+        }
+        let _ = SetForegroundWindow(win_hwnd);
+    }
+}

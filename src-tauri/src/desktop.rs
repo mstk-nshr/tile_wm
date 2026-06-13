@@ -330,6 +330,7 @@ unsafe extern "system" fn enum_window_callback(hwnd: HWND, lparam: LPARAM) -> BO
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DesktopApp {
+    pub hwnd: isize,
     pub process_name: String,
     pub icon_base64: Option<String>,
 }
@@ -523,6 +524,7 @@ pub fn get_all_desktops_apps(
                         None
                     };
                     apps.push(DesktopApp {
+                        hwnd: hwnd.0 as isize,
                         process_name: process_name.clone(),
                         icon_base64,
                     });

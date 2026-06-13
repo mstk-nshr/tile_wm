@@ -64,6 +64,7 @@ pub fn run() {
             commands::get_config,
             commands::update_config,
             commands::get_desktop_apps,
+            commands::focus_window,
             commands::get_desktops,
             commands::get_current_desktop,
             commands::switch_desktop,

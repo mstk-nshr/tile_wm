@@ -323,6 +323,32 @@ body::-webkit-scrollbar {
   margin-right: 6px;
 }
 
+.desktop-app-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--desktop-icon-size, 16px) + 6px);
+  height: calc(var(--desktop-icon-size, 16px) + 6px);
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s, transform 0.1s;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-app-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.05);
+}
+
+.desktop-app-btn:active {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(0.95);
+}
+
 .desktop-app-icon {
   width: var(--desktop-icon-size, 16px);
   height: var(--desktop-icon-size, 16px);
