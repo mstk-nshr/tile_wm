@@ -154,30 +154,47 @@ pub fn switch_desktop(number: i32, state: State<AppState>) -> bool {
 
 #[tauri::command]
 pub fn get_tiling_mode(state: State<AppState>) -> String {
-    let mode = state.tiling_mode.lock().unwrap();
-    serde_json::to_string(&*mode).unwrap_or_default()
+    let desktop = *state.current_desktop.lock().unwrap();
+    let mode = state
+        .tiling_modes
+        .lock()
+        .unwrap()
+        .get(&desktop)
+        .copied()
+        .unwrap_or(tiling::TilingMode::Free);
+    serde_json::to_string(&mode).unwrap_or_default()
 }
 
 #[tauri::command]
 pub fn set_tiling_mode(state: State<AppState>, mode: String) {
     let new_mode: tiling::TilingMode =
         serde_json::from_str(&mode).unwrap_or(tiling::TilingMode::Free);
-    *state.tiling_mode.lock().unwrap() = new_mode;
+    let desktop = *state.current_desktop.lock().unwrap();
+    state.tiling_modes.lock().unwrap().insert(desktop, new_mode);
     // Reset cycle when mode changes
-    *state.tiling_cycle.lock().unwrap() = 0;
+    state.tiling_cycles.lock().unwrap().insert(desktop, 0);
 }
 
 /// Cycle the window-to-tile assignment so the main region gets a different window.
 /// The cycle wraps around based on how many windows are being tiled.
 #[tauri::command]
 pub fn cycle_tiling_layout(state: State<AppState>) {
-    let mut cycle = state.tiling_cycle.lock().unwrap();
+    let desktop = *state.current_desktop.lock().unwrap();
+    let mut cycles = state.tiling_cycles.lock().unwrap();
+    let cycle = cycles.entry(desktop).or_insert(0);
     *cycle += 1;
 }
 
 /// Core tiling logic callable from both the command and background threads.
 pub fn apply_tiling_internal(state: &AppState) -> bool {
-    let mode = *state.tiling_mode.lock().unwrap();
+    let desktop = *state.current_desktop.lock().unwrap();
+    let mode = state
+        .tiling_modes
+        .lock()
+        .unwrap()
+        .get(&desktop)
+        .copied()
+        .unwrap_or(tiling::TilingMode::Free);
     if mode == tiling::TilingMode::Free {
         return false;
     }
@@ -224,13 +241,18 @@ pub fn apply_tiling_internal(state: &AppState) -> bool {
 
     // Apply tile positions to windows with cycle offset so the "main" region
     // rotates among windows each time the user re-clicks the mode button.
-    let cycle = *state.tiling_cycle.lock().unwrap();
+    let cycle = state
+        .tiling_cycles
+        .lock()
+        .unwrap()
+        .get(&desktop)
+        .copied()
+        .unwrap_or(0);
     let n = tiles.len().min(filtered.len());
 
-    for i in 0..n {
+    for (i, tile) in tiles.iter().enumerate().take(n) {
         let src_idx = (i + cycle as usize) % filtered.len();
         let window_info = filtered[src_idx];
-        let tile = &tiles[i];
 
         unsafe {
             let hwnd: HWND = std::mem::transmute(window_info.hwnd);
@@ -294,12 +316,12 @@ pub fn debug_print_windows() {
     let windows = desktop::get_visible_windows();
     let non_cloaked: Vec<_> = windows.iter().filter(|w| !w.is_cloaked).collect();
 
-    println!("");
+    println!();
     println!("═══════════════════════════════════════════════════════");
     println!("[tile_wm DEBUG] EnumWindows detected {} windows", windows.len());
     println!("  Non-cloaked (tiling targets): {}", non_cloaked.len());
-    println!("");
-    println!("  {:<3} {:<50} {:<20} {:<9} {:<10} {}", "#", "Title", "Process", "Cloaked", "Minimized", "HWND");
+    println!();
+    println!("  {:<3} {:<50} {:<20} {:<9} {:<10} HWND", "#", "Title", "Process", "Cloaked", "Minimized");
     println!("  {:-<3} {:-<50} {:-<20} {:-<9} {:-<10} {:-<10}", "", "", "", "", "", "");
     for (i, w) in windows.iter().enumerate() {
         let cloaked = if w.is_cloaked { "CLOAKED" } else { "—" };
@@ -308,7 +330,7 @@ pub fn debug_print_windows() {
         println!("  {:<3} {:<50} {:<20} {:<9} {:<10} {}", i, title, w.process_name, cloaked, minimized, w.hwnd);
     }
     println!("═══════════════════════════════════════════════════════");
-    println!("");
+    println!();
 }
 
 /// Truncate a string at a UTF-8 char boundary so slicing never panics.
@@ -540,6 +562,7 @@ pub fn toggle_flip_main(state: State<AppState>) -> bool {
         config::save_config(&config);
     }
     // Reset cycle so flip swaps main↔sub directly instead of cycling
-    *state.tiling_cycle.lock().unwrap() = 0;
+    let desktop = *state.current_desktop.lock().unwrap();
+    state.tiling_cycles.lock().unwrap().insert(desktop, 0);
     flipped
 }

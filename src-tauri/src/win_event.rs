@@ -48,7 +48,14 @@ fn run_poll_loop() {
 
         // Check if we are in a tiling mode
         let state = app_handle.state::<crate::AppState>();
-        let mode = *state.tiling_mode.lock().unwrap();
+        let desktop = *state.current_desktop.lock().unwrap();
+        let mode = state
+            .tiling_modes
+            .lock()
+            .unwrap()
+            .get(&desktop)
+            .copied()
+            .unwrap_or(tiling::TilingMode::Free);
 
         if mode == tiling::TilingMode::Free {
             // In Free mode, just keep the snapshot up to date

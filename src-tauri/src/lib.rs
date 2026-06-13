@@ -6,14 +6,15 @@ mod commands;
 mod hotkey;
 mod win_event;
 
+use std::collections::HashMap;
 use tauri::Manager;
 use std::sync::Mutex;
 
 pub struct AppState {
     pub config: Mutex<config::Config>,
     pub current_desktop: Mutex<i32>,
-    pub tiling_mode: Mutex<tiling::TilingMode>,
-    pub tiling_cycle: Mutex<i32>,
+    pub tiling_modes: Mutex<HashMap<i32, tiling::TilingMode>>,
+    pub tiling_cycles: Mutex<HashMap<i32, i32>>,
     pub float_window_pos: Mutex<(f64, f64)>,
 }
 
@@ -31,8 +32,8 @@ pub fn run() {
         .manage(AppState {
             config: Mutex::new(config.clone()),
             current_desktop: Mutex::new(initial_desktop),
-            tiling_mode: Mutex::new(tiling::TilingMode::Free),
-            tiling_cycle: Mutex::new(0),
+            tiling_modes: Mutex::new(HashMap::new()),
+            tiling_cycles: Mutex::new(HashMap::new()),
             float_window_pos: Mutex::new(float_pos),
         })
         .setup(move |app| {

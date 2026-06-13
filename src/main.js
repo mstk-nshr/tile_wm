@@ -136,6 +136,7 @@ async function init() {
   try {
     await listen("desktop-changed", (event) => {
       updateDesktopUI(event.payload);
+      loadTilingState();
     });
   } catch (e) {
     console.error("Event listen failed:", e);
@@ -228,6 +229,7 @@ async function switchDesktop(num) {
     await invoke("switch_desktop", { number: num });
     currentDesktop = num;
     updateDesktopUI(num);
+    loadTilingState();
   } catch (e) {
     console.error("Failed to switch desktop:", e);
   }
