@@ -327,31 +327,30 @@ body::-webkit-scrollbar {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: calc(var(--desktop-icon-size, 16px) + 6px);
-  height: calc(var(--desktop-icon-size, 16px) + 6px);
+  width: var(--btn-size, 28px);
+  height: var(--btn-size, 28px);
   border: none;
-  background: transparent;
+  background: rgb(var(--button-bg-rgb, 32, 32, 32));
   padding: 0;
   margin: 0;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.15s, transform 0.1s;
+  border-radius: 6px;
+  transition: all 0.15s ease;
   -webkit-app-region: no-drag;
 }
 
 .desktop-app-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  transform: scale(1.05);
+  background: rgb(var(--button-highlight-bg-rgb, 255, 255, 255));
 }
 
 .desktop-app-btn:active {
-  background: rgba(255, 255, 255, 0.25);
-  transform: scale(0.95);
+  background: rgb(var(--button-highlight-bg-rgb, 255, 255, 255));
+  opacity: 0.8;
 }
 
 .desktop-app-icon {
-  width: var(--desktop-icon-size, 16px);
-  height: var(--desktop-icon-size, 16px);
+  width: var(--icon-size, 18px);
+  height: var(--icon-size, 18px);
   object-fit: contain;
   border-radius: 2px;
 }
