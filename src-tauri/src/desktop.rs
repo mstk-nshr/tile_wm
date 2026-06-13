@@ -441,6 +441,48 @@ fn get_process_icon(process_path: &str) -> Option<HICON> {
     }
 }
 
+fn get_window_icon(hwnd: HWND) -> Option<HICON> {
+    unsafe {
+        let mut result: usize = 0;
+        let res = SendMessageTimeoutW(
+            hwnd,
+            WM_GETICON,
+            WPARAM(2), // ICON_SMALL2
+            LPARAM(0),
+            SMTO_ABORTIFHUNG,
+            100,
+            Some(&mut result),
+        );
+        if res.0 != 0 && result != 0 {
+            return Some(HICON(result as *mut std::ffi::c_void));
+        }
+
+        let res = SendMessageTimeoutW(
+            hwnd,
+            WM_GETICON,
+            WPARAM(0), // ICON_SMALL
+            LPARAM(0),
+            SMTO_ABORTIFHUNG,
+            100,
+            Some(&mut result),
+        );
+        if res.0 != 0 && result != 0 {
+            return Some(HICON(result as *mut std::ffi::c_void));
+        }
+
+        let hicon = GetClassLongPtrW(hwnd, GCLP_HICONSM);
+        if hicon != 0 {
+            return Some(HICON(hicon as *mut std::ffi::c_void));
+        }
+
+        let hicon = GetClassLongPtrW(hwnd, GCLP_HICON);
+        if hicon != 0 {
+            return Some(HICON(hicon as *mut std::ffi::c_void));
+        }
+    }
+    None
+}
+
 unsafe extern "system" fn enum_all_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let windows = &mut *(lparam.0 as *mut Vec<(HWND, String, String, String)>);
 
@@ -512,17 +554,19 @@ pub fn get_all_desktops_apps(
             if winvd::is_window_on_desktop(d, hwnd).unwrap_or(false) {
                 let apps = map.entry(desktop_num).or_default();
                 if !apps.iter().any(|app| app.process_name == process_name) {
-                    let icon_base64 = if !process_path.is_empty() {
+                    let mut icon_base64 = None;
+
+                    if let Some(hicon) = get_window_icon(hwnd) {
+                        icon_base64 = hicon_to_bmp_base64(hicon);
+                    }
+
+                    if icon_base64.is_none() && !process_path.is_empty() {
                         if let Some(hicon) = get_process_icon(&process_path) {
-                            let b64 = hicon_to_bmp_base64(hicon);
+                            icon_base64 = hicon_to_bmp_base64(hicon);
                             unsafe { let _ = DestroyIcon(hicon); }
-                            b64
-                        } else {
-                            None
                         }
-                    } else {
-                        None
-                    };
+                    }
+
                     apps.push(DesktopApp {
                         hwnd: hwnd.0 as isize,
                         process_name: process_name.clone(),
