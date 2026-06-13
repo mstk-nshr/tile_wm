@@ -251,6 +251,16 @@ pub fn apply_tiling_internal(state: &AppState) -> bool {
         }
     }
 
+    // Move focus to the main (first tiled) window so the user can immediately
+    // interact with it, instead of keeping tile_wm as the active window.
+    if n > 0 {
+        let main_idx = cycle as usize % filtered.len();
+        unsafe {
+            let main_hwnd: HWND = std::mem::transmute(filtered[main_idx].hwnd);
+            let _ = SetForegroundWindow(main_hwnd);
+        }
+    }
+
     true
 }
 
