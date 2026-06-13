@@ -21,9 +21,7 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "width": 520,
-        "height": 44,
-        "x": 700,
-        "y": 0
+        "height": 44
       },
       {
         "title": "tile_wm menu",

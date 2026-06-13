@@ -34,6 +34,8 @@ pub fn register_app_bar(
     window: &tauri::WebviewWindow,
     height: i32,
     desktop_count: i32,
+    x: i32,
+    y: i32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let width = compute_width(desktop_count);
     let scale_factor = window.scale_factor().unwrap_or(1.0);
@@ -56,15 +58,12 @@ pub fn register_app_bar(
         let adjusted_width = physical_width + border_width;
         let adjusted_height = physical_height + border_height;
 
-        let screen_w = GetSystemMetrics(SM_CXSCREEN);
-        let x = (screen_w - adjusted_width) / 2;
-
-        // Position window at center-top with computed width
+        // Position window at (x, y) with computed width
         let _ = SetWindowPos(
             hwnd,
             HWND_TOPMOST,
             x,
-            0,
+            y,
             adjusted_width,
             adjusted_height,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
@@ -73,10 +72,6 @@ pub fn register_app_bar(
         Ok(())
     }
 }
-
-// pub fn unregister_app_bar(_window: &tauri::WebviewWindow) -> Result<(), Box<dyn std::error::Error>> {
-//     Ok(())
-// }
 
 fn get_window_handle(window: &tauri::WebviewWindow) -> Result<HWND, Box<dyn std::error::Error>> {
     match window.hwnd() {

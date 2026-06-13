@@ -52,20 +52,20 @@ body::-webkit-scrollbar {
   cursor: pointer;
   font-size: 11px;
   font-weight: 600;
-  color: #888;
-  background: transparent;
+  color: rgb(var(--button-fg-rgb, 136, 136, 136));
+  background: rgb(var(--button-bg-rgb, 32, 32, 32));
   transition: all 0.15s ease;
   -webkit-app-region: no-drag;
 }
 
 .desktop-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ccc;
+  background: rgb(var(--button-highlight-bg-rgb, 255, 255, 255));
+  color: rgb(var(--button-highlight-fg-rgb, 204, 204, 204));
 }
 
 .desktop-btn.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: rgb(var(--button-highlight-bg-rgb, 255, 255, 255));
+  color: rgb(var(--button-highlight-fg-rgb, 255, 255, 255));
 }
 
 /* ─── Separator ─── */
@@ -93,19 +93,20 @@ body::-webkit-scrollbar {
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  background: transparent;
+  color: rgb(var(--button-fg-rgb, 136, 136, 136));
+  background: rgb(var(--button-bg-rgb, 32, 32, 32));
   transition: all 0.15s ease;
   -webkit-app-region: no-drag;
 }
 
 .tiling-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ccc;
+  background: rgb(var(--button-highlight-bg-rgb, 255, 255, 255));
+  color: rgb(var(--button-highlight-fg-rgb, 204, 204, 204));
 }
 
 .tiling-btn.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: rgb(var(--button-highlight-bg-rgb, 255, 255, 255));
+  color: rgb(var(--button-highlight-fg-rgb, 255, 255, 255));
 }
 
 .tiling-btn .icon {
@@ -141,15 +142,15 @@ body::-webkit-scrollbar {
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  color: #888;
-  background: transparent;
+  color: rgb(var(--button-fg-rgb, 136, 136, 136));
+  background: rgb(var(--button-bg-rgb, 32, 32, 32));
   transition: all 0.15s ease;
   -webkit-app-region: no-drag;
 }
 
 .menu-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ccc;
+  background: rgb(var(--button-highlight-bg-rgb, 255, 255, 255));
+  color: rgb(var(--button-highlight-fg-rgb, 204, 204, 204));
 }
 
 /* ─── Dropdown Menu ─── */

@@ -21,10 +21,13 @@ pub struct ConfigResponse {
     pub split_ratio_y: i32,
     pub exclude_titles: Vec<String>,
     pub exclude_processes: Vec<String>,
-    pub float_x: f64,
-    pub float_y: f64,
-    pub float_width: f64,
-    pub float_bg_rgba: [u8; 4],
+    pub window_x: i32,
+    pub window_y: i32,
+    pub window_bg_rgba: [u8; 4],
+    pub button_fg_rgb: [u8; 3],
+    pub button_bg_rgb: [u8; 3],
+    pub button_highlight_fg_rgb: [u8; 3],
+    pub button_highlight_bg_rgb: [u8; 3],
     pub flip_main: bool,
 }
 
@@ -37,10 +40,13 @@ pub fn get_config(state: State<AppState>) -> ConfigResponse {
         split_ratio_y: config.split_ratio_y,
         exclude_titles: config.exclude_titles.clone(),
         exclude_processes: config.exclude_processes.clone(),
-        float_x: config.float_x,
-        float_y: config.float_y,
-        float_width: config.float_width,
-        float_bg_rgba: config.float_bg_rgba,
+        window_x: config.window_x,
+        window_y: config.window_y,
+        window_bg_rgba: config.window_bg_rgba,
+        button_fg_rgb: config.button_fg_rgb,
+        button_bg_rgb: config.button_bg_rgb,
+        button_highlight_fg_rgb: config.button_highlight_fg_rgb,
+        button_highlight_bg_rgb: config.button_highlight_bg_rgb,
         flip_main: config.flip_main,
     }
 }
@@ -56,10 +62,13 @@ pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: 
         config.split_ratio_y = new_config.split_ratio_y;
         config.exclude_titles = new_config.exclude_titles;
         config.exclude_processes = new_config.exclude_processes;
-        config.float_x = new_config.float_x;
-        config.float_y = new_config.float_y;
-        config.float_width = new_config.float_width;
-        config.float_bg_rgba = new_config.float_bg_rgba;
+        config.window_x = new_config.window_x;
+        config.window_y = new_config.window_y;
+        config.window_bg_rgba = new_config.window_bg_rgba;
+        config.button_fg_rgb = new_config.button_fg_rgb;
+        config.button_bg_rgb = new_config.button_bg_rgb;
+        config.button_highlight_fg_rgb = new_config.button_highlight_fg_rgb;
+        config.button_highlight_bg_rgb = new_config.button_highlight_bg_rgb;
         config.flip_main = new_config.flip_main;
         config::save_config(&config);
     }
@@ -93,13 +102,16 @@ pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: 
                 let adjusted_width = physical_width + border_width;
                 let adjusted_height = physical_height + border_height;
 
-                let screen_w = GetSystemMetrics(SM_CXSCREEN);
-                let x = (screen_w - adjusted_width) / 2;
+                let config = state.config.lock().unwrap();
+                let x = config.window_x;
+                let y = config.window_y;
+                drop(config);
+
                 let _ = SetWindowPos(
                     hwnd,
                     HWND_TOPMOST,
                     x,
-                    0,
+                    y,
                     adjusted_width,
                     adjusted_height,
                     SWP_NOACTIVATE | SWP_SHOWWINDOW,
@@ -354,11 +366,11 @@ pub fn debug_window_list() -> Vec<desktop::WindowInfo> {
 }
 
 #[tauri::command]
-pub fn set_float_pos(state: State<AppState>, x: f64, y: f64) {
+pub fn set_float_pos(state: State<AppState>, x: i32, y: i32) {
     *state.float_window_pos.lock().unwrap() = (x, y);
     let mut config = state.config.lock().unwrap();
-    config.float_x = x;
-    config.float_y = y;
+    config.window_x = x;
+    config.window_y = y;
     config::save_config(&config);
 }
 
@@ -446,7 +458,7 @@ pub fn quit_app(app: tauri::AppHandle) {
 /// Resize the main window to exactly fit the rendered taskbar content width.
 /// Called from JS after DOM is fully laid out.
 #[tauri::command]
-pub fn set_window_size(app: tauri::AppHandle, width: i32, height: i32) -> Result<(), String> {
+pub fn set_window_size(app: tauri::AppHandle, state: State<AppState>, width: i32, height: i32) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window not found".to_string())?;
@@ -476,13 +488,16 @@ pub fn set_window_size(app: tauri::AppHandle, width: i32, height: i32) -> Result
         let adjusted_width = physical_width + border_width;
         let adjusted_height = physical_height + border_height;
 
-        let screen_w = GetSystemMetrics(SM_CXSCREEN);
-        let x = (screen_w - adjusted_width) / 2;
+        let config = state.config.lock().unwrap();
+        let x = config.window_x;
+        let y = config.window_y;
+        drop(config);
+
         let _ = SetWindowPos(
             hwnd,
             HWND_TOPMOST,
             x,
-            0,
+            y,
             adjusted_width,
             adjusted_height,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
@@ -519,12 +534,16 @@ pub fn toggle_devtools_size(app: tauri::AppHandle, state: State<AppState>) -> Re
 
         if current_client_h > threshold {
             // Restore to normal (taskbar height only)
-            let screen_w = GetSystemMetrics(SM_CXSCREEN);
+            let config = state.config.lock().unwrap();
+            let x = config.window_x;
+            let y = config.window_y;
+            drop(config);
+
             let _ = SetWindowPos(
                 hwnd,
                 HWND_TOPMOST,
-                (screen_w - (rect.right - rect.left)) / 2,
-                0,
+                x,
+                y,
                 rect.right - rect.left,
                 normal_phys,
                 SWP_NOACTIVATE | SWP_SHOWWINDOW,
@@ -533,13 +552,16 @@ pub fn toggle_devtools_size(app: tauri::AppHandle, state: State<AppState>) -> Re
             // Expand to 800x600 for DevTools
             let debug_w = (800_f64 * scale_factor) as i32;
             let debug_h = (600_f64 * scale_factor) as i32;
-            let screen_w = GetSystemMetrics(SM_CXSCREEN);
-            let x = (screen_w - debug_w) / 2;
+            let config = state.config.lock().unwrap();
+            let x = config.window_x;
+            let y = config.window_y;
+            drop(config);
+
             let _ = SetWindowPos(
                 hwnd,
                 HWND_TOPMOST,
                 x,
-                0,
+                y,
                 debug_w,
                 debug_h,
                 SWP_NOACTIVATE | SWP_SHOWWINDOW,

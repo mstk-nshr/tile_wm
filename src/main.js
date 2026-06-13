@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 // ─── State ─────────────────────────────────────────────────────────────────
 let currentDesktop = 1;
@@ -161,6 +162,22 @@ async function loadConfig() {
       taskbar.style.setProperty('--bar-height', `${config.bar_height}px`);
       taskbar.style.setProperty('--btn-size', `${btnSize}px`);
       taskbar.style.setProperty('--icon-size', `${iconSize}px`);
+    }
+    if (config && config.window_bg_rgba) {
+      const [r, g, b, a] = config.window_bg_rgba;
+      taskbar.style.background = `rgba(${r}, ${g}, ${b}, ${a / 255})`;
+    }
+    if (config && config.button_fg_rgb) {
+      taskbar.style.setProperty('--button-fg-rgb', config.button_fg_rgb.join(', '));
+    }
+    if (config && config.button_bg_rgb) {
+      taskbar.style.setProperty('--button-bg-rgb', config.button_bg_rgb.join(', '));
+    }
+    if (config && config.button_highlight_fg_rgb) {
+      taskbar.style.setProperty('--button-highlight-fg-rgb', config.button_highlight_fg_rgb.join(', '));
+    }
+    if (config && config.button_highlight_bg_rgb) {
+      taskbar.style.setProperty('--button-highlight-bg-rgb', config.button_highlight_bg_rgb.join(', '));
     }
     updateTilingIcons();
   } catch (e) {
@@ -329,8 +346,28 @@ async function fitWindowToContent() {
   }
 }
 
+// ─── Taskbar Drag → Save Position ─────────────────────────────────────────
+let moveDebounceTimer = null;
+async function setupTaskbarMoveListener() {
+  try {
+    const window = getCurrentWindow();
+    await window.onMoved((event) => {
+      const pos = event.payload;
+      if (moveDebounceTimer) clearTimeout(moveDebounceTimer);
+      moveDebounceTimer = setTimeout(() => {
+        invoke("set_float_pos", { x: pos.x, y: pos.y }).catch(() => {});
+      }, 300);
+    });
+  } catch (e) {
+    console.error("Failed to setup move listener:", e);
+  }
+}
+
 // ─── Start ────────────────────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", () => {
+  init();
+  setupTaskbarMoveListener();
+});
 
 // Close menu window when Escape is pressed on the main window
 window.addEventListener("keydown", async (e) => {

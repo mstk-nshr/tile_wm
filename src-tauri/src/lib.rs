@@ -15,13 +15,13 @@ pub struct AppState {
     pub current_desktop: Mutex<i32>,
     pub tiling_modes: Mutex<HashMap<i32, tiling::TilingMode>>,
     pub tiling_cycles: Mutex<HashMap<i32, i32>>,
-    pub float_window_pos: Mutex<(f64, f64)>,
+    pub float_window_pos: Mutex<(i32, i32)>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let config = config::load_config();
-    let float_pos = (config.float_x, config.float_y);
+    let float_pos = (config.window_x, config.window_y);
 
     // 起動時に実際の仮想デスクトップ番号を取得
     let initial_desktop = desktop::get_current_desktop_number().unwrap_or(1);
@@ -39,7 +39,7 @@ pub fn run() {
         .setup(move |app| {
             let window = app.get_webview_window("main").unwrap();
             let desktop_count = desktop::get_desktop_count().unwrap_or(4);
-            app_bar::register_app_bar(&window, config.bar_height, desktop_count)?;
+            app_bar::register_app_bar(&window, config.bar_height, desktop_count, config.window_x, config.window_y)?;
 
             // Start desktop listener thread
             let app_handle = app.handle().clone();
