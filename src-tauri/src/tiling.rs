@@ -96,7 +96,10 @@ pub fn calculate_tiles(
                     height: work_h,
                 }]
             } else if window_count == 2 {
+                // 3Win identity: main (left, full-height) + stack top (right, half-height)
                 let left_w = (config.monitor_w as f64 * ratio_x) as i32;
+                let right_w = config.monitor_w - left_w;
+                let right_h = work_h / 2;
                 vec![
                     TileRegion {
                         x: config.monitor_x,
@@ -107,8 +110,8 @@ pub fn calculate_tiles(
                     TileRegion {
                         x: config.monitor_x + left_w,
                         y: work_y,
-                        width: config.monitor_w - left_w,
-                        height: work_h,
+                        width: right_w,
+                        height: right_h,
                     },
                 ]
             } else {
@@ -155,44 +158,45 @@ pub fn calculate_tiles(
                     }]
                 }
                 2 => {
+                    // 4Win identity: top-left (main) + top-right (quadrant row)
                     let left_w = (config.monitor_w as f64 * ratio_x) as i32;
                     vec![
                         TileRegion {
                             x: config.monitor_x,
                             y: work_y,
                             width: left_w,
-                            height: work_h,
+                            height: top_h,
                         },
                         TileRegion {
                             x: config.monitor_x + left_w,
                             y: work_y,
                             width: config.monitor_w - left_w,
-                            height: work_h,
+                            height: top_h,
                         },
                     ]
                 }
                 3 => {
+                    // 4Win identity: top-left (main) + top-right + bottom-left (L-shape)
                     let left_w = (config.monitor_w as f64 * ratio_x) as i32;
                     let right_w = config.monitor_w - left_w;
-                    let right_h = work_h / 2;
                     vec![
                         TileRegion {
                             x: config.monitor_x,
                             y: work_y,
                             width: left_w,
-                            height: work_h,
+                            height: top_h,
                         },
                         TileRegion {
                             x: config.monitor_x + left_w,
                             y: work_y,
                             width: right_w,
-                            height: right_h,
+                            height: top_h,
                         },
                         TileRegion {
-                            x: config.monitor_x + left_w,
-                            y: work_y + right_h,
-                            width: right_w,
-                            height: work_h - right_h,
+                            x: config.monitor_x,
+                            y: work_y + top_h,
+                            width: left_w,
+                            height: work_h - top_h,
                         },
                     ]
                 }
