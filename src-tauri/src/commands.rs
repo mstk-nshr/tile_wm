@@ -122,6 +122,12 @@ pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: 
 }
 
 #[tauri::command]
+pub fn get_desktop_apps(state: State<AppState>) -> std::collections::HashMap<i32, Vec<desktop::DesktopApp>> {
+    let config = state.config.lock().unwrap();
+    desktop::get_all_desktops_apps(&config.exclude_processes, &config.exclude_titles)
+}
+
+#[tauri::command]
 pub fn get_desktops() -> Vec<i32> {
     // レジストリから実際のデスクトップ数を取得し、失敗時はデフォルトの4を使用
     let count = crate::desktop::get_desktop_count().unwrap_or(4);

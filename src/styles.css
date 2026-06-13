@@ -308,3 +308,24 @@ body::-webkit-scrollbar {
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
 }
+
+/* ─── Desktop Icons ─── */
+.desktop-item-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.desktop-icons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 6px;
+}
+
+.desktop-app-icon {
+  width: var(--desktop-icon-size, 16px);
+  height: var(--desktop-icon-size, 16px);
+  object-fit: contain;
+  border-radius: 2px;
+}

@@ -138,10 +138,14 @@ async function init() {
     await listen("desktop-changed", (event) => {
       updateDesktopUI(event.payload);
       loadTilingState();
+      updateDesktopIcons();
     });
   } catch (e) {
     console.error("Event listen failed:", e);
   }
+
+  updateDesktopIcons();
+  setInterval(updateDesktopIcons, 2000);
 
   // Measure rendered content width and resize window to fit exactly
   requestAnimationFrame(() => {
@@ -159,9 +163,11 @@ async function loadConfig() {
       // Adjust button & icon size relative to bar_height (1px margin each side)
       const btnSize = config.bar_height - 2;
       const iconSize = Math.round(btnSize * 0.64);
+      const desktopIconSize = Math.round(btnSize * 0.55);
       taskbar.style.setProperty('--bar-height', `${config.bar_height}px`);
       taskbar.style.setProperty('--btn-size', `${btnSize}px`);
       taskbar.style.setProperty('--icon-size', `${iconSize}px`);
+      taskbar.style.setProperty('--desktop-icon-size', `${desktopIconSize}px`);
     }
     if (config && config.window_bg_rgba) {
       const [r, g, b, a] = config.window_bg_rgba;
@@ -215,12 +221,22 @@ function createDesktopButtons(desktopList) {
   floatDskBtns = [];
 
   desktopList.forEach((num) => {
+    const container = document.createElement("div");
+    container.className = "desktop-item-container";
+
     const btn = document.createElement("div");
     btn.className = "desktop-btn";
     btn.dataset.desktop = num;
     btn.textContent = num;
-    desktopSection.appendChild(btn);
+    container.appendChild(btn);
     desktopBtns.push(btn);
+
+    const iconsDiv = document.createElement("div");
+    iconsDiv.className = "desktop-icons";
+    iconsDiv.id = `desktop-icons-${num}`;
+    container.appendChild(iconsDiv);
+
+    desktopSection.appendChild(container);
 
     const fbtn = document.createElement("div");
     fbtn.className = "float-desktop-btn";
@@ -229,6 +245,30 @@ function createDesktopButtons(desktopList) {
     floatDesktopBtns.appendChild(fbtn);
     floatDskBtns.push(fbtn);
   });
+}
+
+async function updateDesktopIcons() {
+  try {
+    const desktopApps = await invoke("get_desktop_apps");
+    for (const [numStr, apps] of Object.entries(desktopApps)) {
+      const iconsDiv = document.getElementById(`desktop-icons-${numStr}`);
+      if (iconsDiv) {
+        iconsDiv.innerHTML = "";
+        apps.forEach((app) => {
+          if (app.icon_base64) {
+            const img = document.createElement("img");
+            img.className = "desktop-app-icon";
+            img.src = app.icon_base64;
+            img.title = app.process_name;
+            iconsDiv.appendChild(img);
+          }
+        });
+      }
+    }
+    fitWindowToContent();
+  } catch (e) {
+    console.error("Failed to update desktop icons:", e);
+  }
 }
 
 async function loadDesktopState() {
