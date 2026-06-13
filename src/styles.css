@@ -349,8 +349,19 @@ body::-webkit-scrollbar {
 }
 
 .desktop-app-icon {
-  width: var(--icon-size, 18px);
-  height: var(--icon-size, 18px);
+  width: var(--desktop-icon-size, 18px);
+  height: var(--desktop-icon-size, 18px);
   object-fit: contain;
   border-radius: 2px;
+}
+
+/* UWP icons come from AppxManifest Square*Logo PNGs which carry generous
+   transparent padding around the artwork, so we render them almost
+   edge-to-edge (button border − 1px) and disable the rounding that
+   would otherwise clip the padded edges. */
+.uwp-app-icon {
+  width: var(--uwp-icon-size, 18px);
+  height: var(--uwp-icon-size, 18px);
+  object-fit: contain;
+  border-radius: 0;
 }

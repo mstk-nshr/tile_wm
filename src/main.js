@@ -6,6 +6,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 let currentDesktop = 1;
 let currentMode = "free";
 let config = null;
+let uwpIconSize = 40; // updated by loadConfig()
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────
 const taskbar = document.getElementById("taskbar");
@@ -163,10 +164,15 @@ async function loadConfig() {
       // Adjust button & icon size relative to bar_height (1px margin each side)
       const btnSize = config.bar_height - 2;
       const iconSize = Math.round(btnSize * 0.64);
-      const desktopIconSize = Math.round(btnSize * 0.55);
+      // UWP icons (square AppxManifest logos) have generous transparent padding,
+      // so they can be drawn almost edge-to-edge inside the button.
+      // Non-UWP icons already fill the source image, so we keep a small inner margin.
+      uwpIconSize = btnSize - 3;              // button border − 3px (inner margin)
+      const desktopIconSize = btnSize - 6;     // small inner margin
       taskbar.style.setProperty('--bar-height', `${config.bar_height}px`);
       taskbar.style.setProperty('--btn-size', `${btnSize}px`);
       taskbar.style.setProperty('--icon-size', `${iconSize}px`);
+      taskbar.style.setProperty('--uwp-icon-size', `${uwpIconSize}px`);
       taskbar.style.setProperty('--desktop-icon-size', `${desktopIconSize}px`);
     }
     if (config && config.window_bg_rgba) {
@@ -247,14 +253,94 @@ function createDesktopButtons(desktopList) {
   });
 }
 
+// ─── Desktop Icons ────────────────────────────────────────────────────────
+/**
+ * UWP Square*Logo PNGs carry generous transparent padding around the artwork.
+ * Detect the bounding box of non-transparent pixels and rescale the artwork
+ * to fill the target size so the icon visually matches non-UWP icons.
+ */
+function cropAndResizeImage(dataUrl, targetSize) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = img.width;
+        c.height = img.height;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        const data = ctx.getImageData(0, 0, c.width, c.height);
+        const px = data.data;
+        let minX = c.width, minY = c.height, maxX = -1, maxY = -1;
+        for (let y = 0; y < c.height; y++) {
+          for (let x = 0; x < c.width; x++) {
+            const a = px[(y * c.width + x) * 4 + 3];
+            if (a > 8) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX < 0) {
+          resolve(dataUrl); // fully transparent — keep original
+          return;
+        }
+        const cropW = maxX - minX + 1;
+        const cropH = maxY - minY + 1;
+        const out = document.createElement("canvas");
+        out.width = targetSize;
+        out.height = targetSize;
+        const octx = out.getContext("2d");
+        octx.imageSmoothingEnabled = true;
+        octx.imageSmoothingQuality = "high";
+        octx.drawImage(c, minX, minY, cropW, cropH, 0, 0, targetSize, targetSize);
+        resolve(out.toDataURL("image/png"));
+      } catch (e) {
+        // CORS-tainted canvas, etc. — fall back to the original
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+// Cache of the last rendered app list, used as a key for diff detection.
+let _lastAppsKey = "";
+function _appsFingerprint(desktopApps) {
+  // Cheap, stable signature: per-desktop list of hwnd+process_name.
+  // icon_base64 / is_uwp are intentionally excluded; we only care about
+  // whether the *set* of windows has changed.
+  const parts = [];
+  for (const numStr of Object.keys(desktopApps).sort()) {
+    const apps = desktopApps[numStr];
+    const sig = apps
+      .map((a) => `${a.hwnd}:${a.process_name}`)
+      .join(",");
+    parts.push(`${numStr}=[${sig}]`);
+  }
+  return parts.join("|");
+}
+
 async function updateDesktopIcons() {
   try {
     const desktopApps = await invoke("get_desktop_apps");
+
+    // Diff against the previous poll: if nothing changed, do absolutely
+    // nothing — no DOM rebuild, no Canvas re-encode, no SetWindowPos.
+    // This eliminates the 2-second flicker that occurred because the
+    // previous implementation rebuilt the entire icon tree on every tick.
+    const fp = _appsFingerprint(desktopApps);
+    if (fp === _lastAppsKey) return;
+    _lastAppsKey = fp;
+
     for (const [numStr, apps] of Object.entries(desktopApps)) {
       const iconsDiv = document.getElementById(`desktop-icons-${numStr}`);
       if (iconsDiv) {
         iconsDiv.innerHTML = "";
-        apps.forEach((app) => {
+        for (const app of apps) {
           if (app.icon_base64) {
             const btn = document.createElement("button");
             btn.className = "desktop-app-btn";
@@ -265,13 +351,19 @@ async function updateDesktopIcons() {
             });
 
             const img = document.createElement("img");
-            img.className = "desktop-app-icon";
-            img.src = app.icon_base64;
+            // UWP icons get their own class so CSS can size them larger
+            // (UWP logos have transparent padding around the artwork).
+            img.className = app.is_uwp ? "uwp-app-icon" : "desktop-app-icon";
+            // For UWP icons: strip the transparent padding and rescale the
+            // artwork to fill the box (button border − 1px).
+            img.src = app.is_uwp
+              ? await cropAndResizeImage(app.icon_base64, uwpIconSize)
+              : app.icon_base64;
             btn.appendChild(img);
 
             iconsDiv.appendChild(btn);
           }
-        });
+        }
       }
     }
     fitWindowToContent();
@@ -385,14 +477,38 @@ function setupFloatWindowDrag() {
 
 /// Measure the actual rendered width of the taskbar and resize the window
 /// to fit exactly, eliminating any gaps on the sides.
-async function fitWindowToContent() {
-  const contentWidth = taskbar.scrollWidth;
-  const height = config?.bar_height ?? 40;
-  try {
-    await invoke("set_window_size", { width: contentWidth, height: height });
-  } catch (e) {
-    console.error("set_window_size failed:", e);
-  }
+///
+/// Debounced + hysteretic: rapid calls are coalesced into a single
+/// SetWindowPos, and small reflow churn (sub-pixel/icon-loading) is ignored
+/// unless the difference exceeds `HYST_PX`. This prevents both the visible
+/// flicker of repeated resizes and the transient WebView2 "WindowNotFound"
+/// COM errors that occur when hwnd() is queried while a prior SetWindowPos
+/// is still being processed.
+const HYST_PX = 8;
+let _fitTimer = null;
+let _lastFitWidth = -1;
+let _lastFitHeight = -1;
+function fitWindowToContent(force = false) {
+  if (_fitTimer !== null) clearTimeout(_fitTimer);
+  _fitTimer = setTimeout(async () => {
+    _fitTimer = null;
+    const contentWidth = taskbar.scrollWidth;
+    const height = config?.bar_height ?? 40;
+    if (!force && _lastFitWidth >= 0 &&
+        Math.abs(contentWidth - _lastFitWidth) < HYST_PX &&
+        height === _lastFitHeight) {
+      return; // no visible change; skip SetWindowPos
+    }
+    _lastFitWidth = contentWidth;
+    _lastFitHeight = height;
+    try {
+      await invoke("set_window_size", { width: contentWidth, height: height });
+    } catch (e) {
+      // Suppress "Com_objects … WindowNotFound" noise; the next debounced
+      // call will re-measure and resize if the value actually changed.
+      console.debug("set_window_size:", e);
+    }
+  }, 150);
 }
 
 // ─── Taskbar Drag → Save Position ─────────────────────────────────────────

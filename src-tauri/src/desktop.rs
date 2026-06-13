@@ -334,6 +334,10 @@ pub struct DesktopApp {
     pub hwnd: isize,
     pub process_name: String,
     pub icon_base64: Option<String>,
+    /// True if the icon was obtained from a UWP package (AppxManifest Square*Logo).
+    /// UWP logos typically contain generous padding, so the frontend may want
+    /// to render them at a larger CSS size than non-UWP icons.
+    pub is_uwp: bool,
 }
 
 fn base64_encode(data: &[u8]) -> String {
@@ -629,19 +633,23 @@ fn get_package_install_path(full_name: &str) -> Option<std::path::PathBuf> {
     }
 }
 
-fn parse_logo_from_manifest(manifest_path: &std::path::Path) -> Option<String> {
-    let content = std::fs::read_to_string(manifest_path).ok()?;
-    for attr in &["Square44x44Logo", "Square150x150Logo"] {
+fn parse_logo_paths_from_manifest(manifest_path: &std::path::Path) -> Vec<String> {
+    let content = std::fs::read_to_string(manifest_path).ok();
+    let content = match content {
+        Some(c) => c,
+        None => return Vec::new(),
+    };
+    let mut paths = Vec::new();
+    for attr in &["Square44x44Logo", "Square150x150Logo", "Square310x310Logo", "Square71x71Logo"] {
         let pattern = format!("{}=\"", attr);
         if let Some(start) = content.find(&pattern) {
             let value_start = start + pattern.len();
             if let Some(end) = content[value_start..].find('"') {
-                let logo_path = &content[value_start..value_start + end];
-                return Some(logo_path.to_string());
+                paths.push(content[value_start..value_start + end].to_string());
             }
         }
     }
-    None
+    paths
 }
 
 fn find_best_logo_file(
@@ -685,11 +693,12 @@ fn find_best_logo_file(
         }
     }
 
-    candidates.sort_by_key(|(scale, _)| {
-        if *scale == 0 {
-            10000u32
-        } else {
-            (*scale as i32 - 200).unsigned_abs()
+    candidates.sort_by(|a, b| {
+        match (a.0, b.0) {
+            (0, 0) => std::cmp::Ordering::Equal,
+            (0, _) => std::cmp::Ordering::Greater,
+            (_, 0) => std::cmp::Ordering::Less,
+            (x, y) => y.cmp(&x),
         }
     });
 
@@ -706,14 +715,28 @@ fn get_uwp_icon_base64(hwnd: HWND) -> Option<String> {
     let package_name = get_package_name_for_pid(pid)?;
     let package_dir = get_package_install_path(&package_name)?;
     let manifest_path = package_dir.join("AppxManifest.xml");
-    let logo_relative = parse_logo_from_manifest(&manifest_path)?;
-    let logo_file = find_best_logo_file(&package_dir, &logo_relative)?;
-    
-    if let Ok(png_bytes) = std::fs::read(&logo_file) {
-        Some(format!("data:image/png;base64,{}", base64_encode(&png_bytes)))
-    } else {
-        None
+    let logo_paths = parse_logo_paths_from_manifest(&manifest_path);
+
+    let mut best: Option<std::path::PathBuf> = None;
+    let mut best_len = 0u64;
+    for logo_relative in &logo_paths {
+        if let Some(path) = find_best_logo_file(&package_dir, logo_relative) {
+            if let Ok(meta) = std::fs::metadata(&path) {
+                let len = meta.len();
+                if len > best_len {
+                    best_len = len;
+                    best = Some(path);
+                }
+            }
+        }
     }
+
+    if let Some(logo_file) = best {
+        if let Ok(png_bytes) = std::fs::read(&logo_file) {
+            return Some(format!("data:image/png;base64,{}", base64_encode(&png_bytes)));
+        }
+    }
+    None
 }
 
 unsafe extern "system" fn enum_child_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
@@ -829,7 +852,12 @@ pub fn get_all_desktops_apps(
                 let apps = map.entry(desktop_num).or_default();
                 if !apps.iter().any(|app| app.process_name == process_name) {
                     // 1. UWP公式PNGアイコンの取得を最優先で試みる
-                    let mut icon_base64 = get_uwp_icon_base64(hwnd);
+                    //    UWP ロゴは余白多めの PNG なので、フラグで JS 側に区別を伝える
+                    let (uwp_b64_opt, is_uwp) = match get_uwp_icon_base64(hwnd) {
+                        Some(b64) => (Some(b64), true),
+                        None => (None, false),
+                    };
+                    let mut icon_base64 = uwp_b64_opt;
 
                     // 2. 失敗した場合は通常のウィンドウアイコンを試みる
                     if icon_base64.is_none() {
@@ -850,6 +878,7 @@ pub fn get_all_desktops_apps(
                         hwnd: hwnd.0 as isize,
                         process_name: process_name.clone(),
                         icon_base64,
+                        is_uwp,
                     });
                 }
             }
