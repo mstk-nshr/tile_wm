@@ -4,6 +4,7 @@ pub mod tiling;
 mod config;
 mod commands;
 mod hotkey;
+mod win_event;
 
 use tauri::Manager;
 use std::sync::Mutex;
@@ -50,6 +51,11 @@ pub fn run() {
             std::thread::spawn(move || {
                 hotkey::install_hotkey_hook(app_handle_hotkey);
             });
+
+            // Start window creation/destruction monitor
+            // Automatically re-tiles when windows appear/disappear in tiling mode
+            let app_handle_we = app.handle().clone();
+            win_event::listen_window_events(app_handle_we);
 
             Ok(())
         })

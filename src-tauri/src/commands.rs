@@ -175,9 +175,12 @@ pub fn cycle_tiling_layout(state: State<AppState>) {
     *cycle += 1;
 }
 
-#[tauri::command]
-pub fn apply_tiling(state: State<AppState>) -> bool {
+/// Core tiling logic callable from both the command and background threads.
+pub fn apply_tiling_internal(state: &AppState) -> bool {
     let mode = *state.tiling_mode.lock().unwrap();
+    if mode == tiling::TilingMode::Free {
+        return false;
+    }
     let config = state.config.lock().unwrap();
 
     // Get visible windows on current desktop
@@ -249,6 +252,11 @@ pub fn apply_tiling(state: State<AppState>) -> bool {
     }
 
     true
+}
+
+#[tauri::command]
+pub fn apply_tiling(state: State<AppState>) -> bool {
+    apply_tiling_internal(&state)
 }
 
 #[tauri::command]
