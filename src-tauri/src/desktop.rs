@@ -338,7 +338,7 @@ pub struct DesktopApp {
 
 fn base64_encode(data: &[u8]) -> String {
     const CHARSET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut result = String::with_capacity((data.len() + 2) / 3 * 4);
+    let mut result = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
         match chunk.len() {
             3 => {
@@ -720,11 +720,9 @@ unsafe extern "system" fn enum_child_windows_callback(hwnd: HWND, lparam: LPARAM
     let target_pid = &mut *(lparam.0 as *mut u32);
     let mut pid = 0;
     GetWindowThreadProcessId(hwnd, Some(&mut pid));
-    if pid > 0 {
-        if pid != *target_pid {
-            *target_pid = pid;
-            return FALSE;
-        }
+    if pid > 0 && pid != *target_pid {
+        *target_pid = pid;
+        return FALSE;
     }
     TRUE
 }
@@ -830,10 +828,8 @@ pub fn get_all_desktops_apps(
 
                 let apps = map.entry(desktop_num).or_default();
                 if !apps.iter().any(|app| app.process_name == process_name) {
-                    let mut icon_base64 = None;
-
                     // 1. UWP公式PNGアイコンの取得を最優先で試みる
-                    icon_base64 = get_uwp_icon_base64(hwnd);
+                    let mut icon_base64 = get_uwp_icon_base64(hwnd);
 
                     // 2. 失敗した場合は通常のウィンドウアイコンを試みる
                     if icon_base64.is_none() {
