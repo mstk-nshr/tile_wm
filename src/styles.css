@@ -43,7 +43,7 @@ body::-webkit-scrollbar {
 }
 
 .desktop-btn {
-  width: var(--btn-size, 28px);
+  width: calc(var(--btn-size, 28px) * var(--screen-aspect, 1.7777));
   height: var(--btn-size, 28px);
   display: flex;
   align-items: center;

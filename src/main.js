@@ -169,11 +169,18 @@ async function loadConfig() {
       // Non-UWP icons already fill the source image, so we keep a small inner margin.
       uwpIconSize = btnSize - 3;              // button border − 3px (inner margin)
       const desktopIconSize = btnSize - 6;     // small inner margin
+
+      // Calculate screen aspect ratio
+      const screenWidth = window.screen.width || 1920;
+      const screenHeight = window.screen.height || 1080;
+      const aspect = screenWidth / screenHeight;
+
       taskbar.style.setProperty('--bar-height', `${config.bar_height}px`);
       taskbar.style.setProperty('--btn-size', `${btnSize}px`);
       taskbar.style.setProperty('--icon-size', `${iconSize}px`);
       taskbar.style.setProperty('--uwp-icon-size', `${uwpIconSize}px`);
       taskbar.style.setProperty('--desktop-icon-size', `${desktopIconSize}px`);
+      taskbar.style.setProperty('--screen-aspect', `${aspect}`);
     }
     if (config && config.window_bg_rgba) {
       const [r, g, b, a] = config.window_bg_rgba;
@@ -506,8 +513,8 @@ function fitWindowToContent(force = false) {
     const contentWidth = taskbar.scrollWidth;
     const height = config?.bar_height ?? 40;
     if (!force && _lastFitWidth >= 0 &&
-        Math.abs(contentWidth - _lastFitWidth) < HYST_PX &&
-        height === _lastFitHeight) {
+      Math.abs(contentWidth - _lastFitWidth) < HYST_PX &&
+      height === _lastFitHeight) {
       return; // no visible change; skip SetWindowPos
     }
     _lastFitWidth = contentWidth;
@@ -531,7 +538,7 @@ async function setupTaskbarMoveListener() {
       const pos = event.payload;
       if (moveDebounceTimer) clearTimeout(moveDebounceTimer);
       moveDebounceTimer = setTimeout(() => {
-        invoke("set_float_pos", { x: pos.x, y: pos.y }).catch(() => {});
+        invoke("set_float_pos", { x: pos.x, y: pos.y }).catch(() => { });
       }, 300);
     });
   } catch (e) {
