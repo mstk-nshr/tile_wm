@@ -22,6 +22,13 @@ body::-webkit-scrollbar {
   display: none;
 }
 
+/* Prevent default browser dragging on all images to avoid unwanted dragging on static icons */
+img {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 /* ─── Taskbar ─── */
 #taskbar {
   display: flex;
@@ -40,6 +47,12 @@ body::-webkit-scrollbar {
   align-items: center;
   gap: 2px;
   padding-left: 20px;
+}
+
+/* ドラッグ中のみ、デスクトップセクションおよびコンテナをno-drag化してDnDを受け付ける */
+.dragging-active #desktop-section,
+.dragging-active .desktop-item-container {
+  -webkit-app-region: no-drag !important;
 }
 
 .desktop-btn {
@@ -66,6 +79,13 @@ body::-webkit-scrollbar {
 .desktop-btn.active {
   background: rgb(var(--button-highlight-bg-rgb, 255, 255, 255));
   color: rgb(var(--button-highlight-fg-rgb, 255, 255, 255));
+}
+
+.desktop-item-container.drag-hover .desktop-btn,
+.desktop-btn.drag-hover {
+  background: rgb(var(--button-highlight-bg-rgb, 255, 255, 255)) !important;
+  color: rgb(var(--button-highlight-fg-rgb, 204, 204, 204)) !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
 }
 
 /* ─── Separator ─── */
@@ -270,6 +290,7 @@ body::-webkit-scrollbar {
   color: #888;
   background: rgba(255, 255, 255, 0.04);
   transition: all 0.15s;
+  -webkit-app-region: no-drag;
 }
 
 .float-desktop-btn:hover {
@@ -280,6 +301,12 @@ body::-webkit-scrollbar {
 .float-desktop-btn.active {
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
+}
+
+.float-desktop-btn.drag-hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
 }
 
 .float-tiling-btns {
@@ -333,10 +360,15 @@ body::-webkit-scrollbar {
   background: rgb(var(--button-bg-rgb, 32, 32, 32));
   padding: 0;
   margin: 0;
-  cursor: pointer;
+  cursor: grab;
   border-radius: 6px;
   transition: all 0.15s ease;
   -webkit-app-region: no-drag;
+}
+
+.desktop-app-btn.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
 }
 
 .desktop-app-btn:hover {
@@ -353,6 +385,7 @@ body::-webkit-scrollbar {
   height: var(--desktop-icon-size, 18px);
   object-fit: contain;
   border-radius: 2px;
+  pointer-events: none;
 }
 
 /* UWP icons come from AppxManifest Square*Logo PNGs which carry generous
@@ -364,4 +397,5 @@ body::-webkit-scrollbar {
   height: var(--uwp-icon-size, 18px);
   object-fit: contain;
   border-radius: 0;
+  pointer-events: none;
 }

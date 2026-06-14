@@ -636,3 +636,17 @@ pub fn close_window(hwnd: isize) {
         let _ = PostMessageW(win_hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
     }
 }
+
+#[tauri::command]
+pub fn move_window_to_desktop(hwnd: isize, desktop_number: i32) -> Result<(), String> {
+    let desktops = winvd::get_desktops().map_err(|e| format!("get_desktops: {:?}", e))?;
+    let target_index = (desktop_number - 1) as usize;
+    if target_index >= desktops.len() {
+        return Err(format!("desktop_number {} out of bounds", desktop_number));
+    }
+    let desktop = &desktops[target_index];
+    
+    let win_hwnd = HWND(hwnd as *mut std::ffi::c_void);
+    winvd::move_window_to_desktop(*desktop, &win_hwnd).map_err(|e| format!("move_window_to_desktop failed: {:?}", e))?;
+    Ok(())
+}

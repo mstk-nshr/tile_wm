@@ -20,6 +20,7 @@
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
+        "dragDropEnabled": false,
         "width": 520,
         "height": 44
       },

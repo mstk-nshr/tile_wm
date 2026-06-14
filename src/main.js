@@ -32,6 +32,7 @@ async function init() {
 
   // Dynamically create desktop buttons
   createDesktopButtons(desktopList);
+  setupGlobalDragAndDrop();
 
   try {
     await loadConfig();
@@ -225,6 +226,85 @@ function updateTilingIcons() {
   }
 }
 
+let globalDnDInitialized = false;
+function setupGlobalDragAndDrop() {
+  if (globalDnDInitialized) return;
+  globalDnDInitialized = true;
+
+  document.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "move";
+    }
+  });
+
+  document.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    document.querySelectorAll(".desktop-item-container, .float-desktop-btn").forEach(el => {
+      el.classList.remove("drag-hover");
+    });
+
+    const container = e.target.closest(".desktop-item-container");
+    if (container) {
+      container.classList.add("drag-hover");
+    } else {
+      const floatBtn = e.target.closest(".float-desktop-btn");
+      if (floatBtn) {
+        floatBtn.classList.add("drag-hover");
+      }
+    }
+  });
+
+  document.addEventListener("dragleave", (e) => {
+    const container = e.target.closest(".desktop-item-container");
+    const floatBtn = e.target.closest(".float-desktop-btn");
+    if (container && !container.contains(e.relatedTarget)) {
+      container.classList.remove("drag-hover");
+    }
+    if (floatBtn && !floatBtn.contains(e.relatedTarget)) {
+      floatBtn.classList.remove("drag-hover");
+    }
+  });
+
+  document.addEventListener("dragend", () => {
+    document.querySelectorAll(".desktop-item-container, .float-desktop-btn").forEach(el => {
+      el.classList.remove("drag-hover");
+    });
+    taskbar.classList.remove("dragging-active");
+  });
+
+  document.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    document.querySelectorAll(".desktop-item-container, .float-desktop-btn").forEach(el => {
+      el.classList.remove("drag-hover");
+    });
+    taskbar.classList.remove("dragging-active");
+
+    const hwndStr = e.dataTransfer.getData("text");
+    const hwnd = parseInt(hwndStr, 10);
+
+    const container = e.target.closest(".desktop-item-container");
+    const floatBtn = e.target.closest(".float-desktop-btn");
+
+    let targetDesktop = null;
+    if (container) {
+      targetDesktop = parseInt(container.dataset.desktop, 10);
+    } else if (floatBtn) {
+      targetDesktop = parseInt(floatBtn.dataset.desktop, 10);
+    }
+
+    if (!isNaN(hwnd) && targetDesktop !== null && !isNaN(targetDesktop)) {
+      try {
+        await invoke("move_window_to_desktop", { hwnd, desktopNumber: targetDesktop });
+        await switchDesktop(targetDesktop);
+        await invoke("focus_window", { hwnd });
+      } catch (err) {
+        console.error("Failed to drag-and-drop move window:", err);
+      }
+    }
+  });
+}
+
 // ─── Desktop ──────────────────────────────────────────────────────────────
 function createDesktopButtons(desktopList) {
   desktopSection.innerHTML = "";
@@ -236,6 +316,7 @@ function createDesktopButtons(desktopList) {
   desktopList.forEach((num) => {
     const container = document.createElement("div");
     container.className = "desktop-item-container";
+    container.dataset.desktop = num;
 
     const btn = document.createElement("div");
     btn.className = "desktop-btn";
@@ -386,9 +467,20 @@ async function updateDesktopIcons() {
       if (iconsDiv) {
         for (const app of apps) {
           if (app.icon_base64) {
-            const btn = document.createElement("button");
+            const btn = document.createElement("div");
             btn.className = "desktop-app-btn";
             btn.title = app.process_name;
+            btn.draggable = true;
+            btn.addEventListener("dragstart", (e) => {
+              btn.classList.add("dragging");
+              taskbar.classList.add("dragging-active");
+              e.dataTransfer.setData("text", app.hwnd.toString());
+              e.dataTransfer.effectAllowed = "move";
+            });
+            btn.addEventListener("dragend", () => {
+              btn.classList.remove("dragging");
+              taskbar.classList.remove("dragging-active");
+            });
             btn.addEventListener("click", (e) => {
               e.stopPropagation();
               invoke("focus_window", { hwnd: app.hwnd });
@@ -402,6 +494,7 @@ async function updateDesktopIcons() {
             });
 
             const img = document.createElement("img");
+            img.draggable = false;
             // UWP icons get their own class so CSS can size them larger
             // (UWP logos have transparent padding around the artwork).
             img.className = app.is_uwp ? "uwp-app-icon" : "desktop-app-icon";
