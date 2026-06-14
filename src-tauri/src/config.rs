@@ -18,6 +18,7 @@ pub struct Config {
     pub button_highlight_fg_rgb: [u8; 3],
     pub button_highlight_bg_rgb: [u8; 3],
     pub flip_main: bool,
+    pub min_window_height: i32,
 }
 
 impl Default for Config {
@@ -36,6 +37,7 @@ impl Default for Config {
             button_highlight_fg_rgb: [255, 255, 255],
             button_highlight_bg_rgb: [255, 255, 255],
             flip_main: false,
+            min_window_height: 220,
         }
     }
 }

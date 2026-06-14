@@ -29,6 +29,7 @@ pub struct ConfigResponse {
     pub button_highlight_fg_rgb: [u8; 3],
     pub button_highlight_bg_rgb: [u8; 3],
     pub flip_main: bool,
+    pub min_window_height: i32,
 }
 
 #[tauri::command]
@@ -48,6 +49,7 @@ pub fn get_config(state: State<AppState>) -> ConfigResponse {
         button_highlight_fg_rgb: config.button_highlight_fg_rgb,
         button_highlight_bg_rgb: config.button_highlight_bg_rgb,
         flip_main: config.flip_main,
+        min_window_height: config.min_window_height,
     }
 }
 
@@ -70,6 +72,7 @@ pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: 
         config.button_highlight_fg_rgb = new_config.button_highlight_fg_rgb;
         config.button_highlight_bg_rgb = new_config.button_highlight_bg_rgb;
         config.flip_main = new_config.flip_main;
+        config.min_window_height = new_config.min_window_height;
         config::save_config(&config);
     }
 
@@ -226,7 +229,8 @@ pub fn apply_tiling_internal(state: &AppState) -> bool {
     // Get visible windows on current desktop
     let windows = desktop::get_visible_windows();
 
-    // Filter excluded and cloaked windows
+    // Filter excluded, cloaked, and too-short windows
+    let min_h = config.min_window_height;
     let mut filtered: Vec<_> = windows
         .iter()
         .filter(|w| {
@@ -236,6 +240,7 @@ pub fn apply_tiling_internal(state: &AppState) -> bool {
                     .iter()
                     .any(|p| w.process_name.contains(p))
                 && !config.exclude_titles.iter().any(|t| w.title.contains(t))
+                && (w.rect.3 - w.rect.1) >= min_h
         })
         .collect();
 
@@ -318,6 +323,7 @@ pub fn apply_tiling(state: State<AppState>) -> bool {
 pub fn get_window_list(state: State<AppState>) -> Vec<desktop::WindowInfo> {
     let config = state.config.lock().unwrap();
     let windows = desktop::get_visible_windows();
+    let min_h = config.min_window_height;
 
     windows
         .into_iter()
@@ -328,6 +334,7 @@ pub fn get_window_list(state: State<AppState>) -> Vec<desktop::WindowInfo> {
                     .iter()
                     .any(|p| w.process_name.contains(p))
                 && !config.exclude_titles.iter().any(|t| w.title.contains(t))
+                && (w.rect.3 - w.rect.1) >= min_h
         })
         .collect()
 }
