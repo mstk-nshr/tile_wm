@@ -11,7 +11,7 @@ use crate::AppState;
 
 const MENU_WIDTH: i32 = 200;
 const MENU_HEIGHT: i32 = 200;
-const MENU_OFFSET_X: i32 = 20; // メインウィンドウ右端からのオフセット
+const MENU_OFFSET_X: i32 = 20; // メインウィンドウ左端からのオフセット（メニューボタンの位置に合わせる）
 const MENU_OFFSET_Y: i32 = 4; // メインウィンドウ下端からのオフセット
 
 #[derive(Serialize, Deserialize)]
@@ -424,8 +424,8 @@ pub async fn show_menu_window(app: tauri::AppHandle) -> Result<(), String> {
         return Err("GetWindowRect failed".into());
     }
 
-    // Position menu so its top-right aligns roughly with the right side of the main window
-    let menu_x = rect.right - MENU_WIDTH - MENU_OFFSET_X;
+    // Position menu below the menu button (left side of the main window)
+    let menu_x = rect.left + MENU_OFFSET_X;
     let menu_y = rect.bottom + MENU_OFFSET_Y;
 
     // Get or create the menu window

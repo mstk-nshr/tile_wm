@@ -4,10 +4,11 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 
 /// Calculate taskbar window width based on desktop count.
 /// Formula: 440 + 30 * desktop_count
-/// - desktop_section: 20px padding-left + N*28px buttons + (N-1)*2px gaps
+/// - spacers: 2 × 20px
+/// - menu_section: 28px button
 /// - tiling_section: ~342px (4 fixed buttons)
-/// - menu_section: 28px button + 20px padding-right
-/// - separators: 2 × 13px, taskbar gaps: 4 × 4px
+/// - desktop_section: N*28px buttons + (N-1)*2px gaps
+/// - separators: 3 × 13px, taskbar gaps: 6 × 4px
 pub fn compute_width(desktop_count: i32) -> i32 {
     440 + 30 * desktop_count
 }
