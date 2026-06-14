@@ -316,6 +316,7 @@ function cropAndResizeImage(dataUrl, targetSize) {
 
 // Cache of the last rendered app list, used as a key for diff detection.
 let _lastAppsKey = "";
+let desktopAppOrders = {};
 function _appsFingerprint(desktopApps) {
   // Cheap, stable signature: per-desktop list of hwnd+process_name.
   // icon_base64 / is_uwp are intentionally excluded; we only care about
@@ -334,6 +335,31 @@ function _appsFingerprint(desktopApps) {
 async function updateDesktopIcons() {
   try {
     const desktopApps = await invoke("get_desktop_apps");
+
+    // Maintain stable icon order even when active window changes.
+    for (const [numStr, apps] of Object.entries(desktopApps)) {
+      if (!desktopAppOrders[numStr]) {
+        desktopAppOrders[numStr] = [];
+      }
+      const currentProcessNames = apps.map((app) => app.process_name);
+
+      // Remove apps that are no longer present on this desktop
+      desktopAppOrders[numStr] = desktopAppOrders[numStr].filter((pName) =>
+        currentProcessNames.includes(pName)
+      );
+
+      // Append newly discovered apps to the end
+      currentProcessNames.forEach((pName) => {
+        if (!desktopAppOrders[numStr].includes(pName)) {
+          desktopAppOrders[numStr].push(pName);
+        }
+      });
+
+      // Sort the apps based on the stable order
+      apps.sort((a, b) => {
+        return desktopAppOrders[numStr].indexOf(a.process_name) - desktopAppOrders[numStr].indexOf(b.process_name);
+      });
+    }
 
     // Diff against the previous poll: if nothing changed, do absolutely
     // nothing — no DOM rebuild, no Canvas re-encode, no SetWindowPos.
