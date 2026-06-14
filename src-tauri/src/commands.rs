@@ -122,7 +122,9 @@ pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: 
 }
 
 #[tauri::command]
-pub fn get_desktop_apps(state: State<AppState>) -> std::collections::HashMap<i32, Vec<desktop::DesktopApp>> {
+pub fn get_desktop_apps(
+    state: State<AppState>,
+) -> std::collections::HashMap<i32, Vec<desktop::DesktopApp>> {
     let config = state.config.lock().unwrap();
     desktop::get_all_desktops_apps(&config.exclude_processes, &config.exclude_titles)
 }
@@ -162,7 +164,10 @@ pub fn switch_desktop(number: i32, state: State<AppState>) -> bool {
             return false;
         }
     } else {
-        eprintln!("[tile_wm] switch_desktop: index {} out of bounds", target_index);
+        eprintln!(
+            "[tile_wm] switch_desktop: index {} out of bounds",
+            target_index
+        );
         return false;
     }
 
@@ -336,16 +341,28 @@ pub fn debug_print_windows() {
 
     println!();
     println!("═══════════════════════════════════════════════════════");
-    println!("[tile_wm DEBUG] EnumWindows detected {} windows", windows.len());
+    println!(
+        "[tile_wm DEBUG] EnumWindows detected {} windows",
+        windows.len()
+    );
     println!("  Non-cloaked (tiling targets): {}", non_cloaked.len());
     println!();
-    println!("  {:<3} {:<50} {:<20} {:<9} {:<10} HWND", "#", "Title", "Process", "Cloaked", "Minimized");
-    println!("  {:-<3} {:-<50} {:-<20} {:-<9} {:-<10} {:-<10}", "", "", "", "", "", "");
+    println!(
+        "  {:<3} {:<50} {:<20} {:<9} {:<10} HWND",
+        "#", "Title", "Process", "Cloaked", "Minimized"
+    );
+    println!(
+        "  {:-<3} {:-<50} {:-<20} {:-<9} {:-<10} {:-<10}",
+        "", "", "", "", "", ""
+    );
     for (i, w) in windows.iter().enumerate() {
         let cloaked = if w.is_cloaked { "CLOAKED" } else { "—" };
         let minimized = if w.is_minimized { "minimized" } else { "—" };
         let title = truncate_title(&w.title, 48);
-        println!("  {:<3} {:<50} {:<20} {:<9} {:<10} {}", i, title, w.process_name, cloaked, minimized, w.hwnd);
+        println!(
+            "  {:<3} {:<50} {:<20} {:<9} {:<10} {}",
+            i, title, w.process_name, cloaked, minimized, w.hwnd
+        );
     }
     println!("═══════════════════════════════════════════════════════");
     println!();
@@ -464,7 +481,12 @@ pub fn quit_app(app: tauri::AppHandle) {
 /// Resize the main window to exactly fit the rendered taskbar content width.
 /// Called from JS after DOM is fully laid out.
 #[tauri::command]
-pub fn set_window_size(app: tauri::AppHandle, state: State<AppState>, width: i32, height: i32) -> Result<(), String> {
+pub fn set_window_size(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    width: i32,
+    height: i32,
+) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window not found".to_string())?;
@@ -603,5 +625,14 @@ pub fn focus_window(hwnd: isize) {
             let _ = ShowWindow(win_hwnd, SW_RESTORE);
         }
         let _ = SetForegroundWindow(win_hwnd);
+    }
+}
+
+#[tauri::command]
+pub fn close_window(hwnd: isize) {
+    unsafe {
+        use windows::Win32::Foundation::{LPARAM, WPARAM};
+        let win_hwnd = HWND(hwnd as *mut std::ffi::c_void);
+        let _ = PostMessageW(win_hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
     }
 }

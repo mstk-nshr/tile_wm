@@ -1,14 +1,14 @@
 mod app_bar;
-mod desktop;
-pub mod tiling;
-mod config;
 mod commands;
+mod config;
+mod desktop;
 mod hotkey;
+pub mod tiling;
 mod win_event;
 
 use std::collections::HashMap;
-use tauri::Manager;
 use std::sync::Mutex;
+use tauri::Manager;
 
 pub struct AppState {
     pub config: Mutex<config::Config>,
@@ -39,7 +39,13 @@ pub fn run() {
         .setup(move |app| {
             let window = app.get_webview_window("main").unwrap();
             let desktop_count = desktop::get_desktop_count().unwrap_or(4);
-            app_bar::register_app_bar(&window, config.bar_height, desktop_count, config.window_x, config.window_y)?;
+            app_bar::register_app_bar(
+                &window,
+                config.bar_height,
+                desktop_count,
+                config.window_x,
+                config.window_y,
+            )?;
 
             // Start desktop listener thread
             let app_handle = app.handle().clone();
@@ -65,6 +71,7 @@ pub fn run() {
             commands::update_config,
             commands::get_desktop_apps,
             commands::focus_window,
+            commands::close_window,
             commands::get_desktops,
             commands::get_current_desktop,
             commands::switch_desktop,

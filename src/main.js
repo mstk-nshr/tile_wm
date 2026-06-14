@@ -393,6 +393,13 @@ async function updateDesktopIcons() {
               e.stopPropagation();
               invoke("focus_window", { hwnd: app.hwnd });
             });
+            btn.addEventListener("auxclick", (e) => {
+              if (e.button === 1) {
+                e.stopPropagation();
+                e.preventDefault();
+                invoke("close_window", { hwnd: app.hwnd });
+              }
+            });
 
             const img = document.createElement("img");
             // UWP icons get their own class so CSS can size them larger
