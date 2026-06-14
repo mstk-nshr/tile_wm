@@ -313,7 +313,14 @@ function createDesktopButtons(desktopList) {
   desktopBtns = [];
   floatDskBtns = [];
 
-  desktopList.forEach((num) => {
+  desktopList.forEach((num, index) => {
+    // Insert separator before each desktop group after the first
+    if (index > 0) {
+      const sep = document.createElement("div");
+      sep.className = "separator";
+      desktopSection.appendChild(sep);
+    }
+
     const container = document.createElement("div");
     container.className = "desktop-item-container";
     container.dataset.desktop = num;

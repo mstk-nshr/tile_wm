@@ -41,12 +41,17 @@ img {
   -webkit-app-region: drag;
 }
 
+/* ─── Spacer ─── */
+.spacer {
+  width: 20px;
+  flex-shrink: 0;
+}
+
 /* ─── Desktop Buttons ─── */
 #desktop-section {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding-left: 20px;
 }
 
 /* ドラッグ中のみ、デスクトップセクションおよびコンテナをno-drag化してDnDを受け付ける */
@@ -150,7 +155,6 @@ img {
 #menu-section {
   display: flex;
   align-items: center;
-  padding-right: 20px;
 }
 
 .menu-btn {
