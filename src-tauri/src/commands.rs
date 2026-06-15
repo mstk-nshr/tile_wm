@@ -144,7 +144,7 @@ pub fn get_desktop_apps(
     state: State<AppState>,
 ) -> std::collections::HashMap<i32, Vec<desktop::DesktopApp>> {
     let config = state.config.lock().unwrap();
-    desktop::get_all_desktops_apps(&config.exclude_processes, &config.exclude_titles)
+    desktop::get_all_desktops_apps(&config.exclude_processes, &config.effective_exclude_titles())
 }
 
 #[tauri::command]
@@ -246,6 +246,7 @@ pub fn apply_tiling_internal(state: &AppState) -> bool {
 
     // Filter excluded, cloaked, topmost, and too-short windows
     let min_h = config.min_window_height;
+    let exclude_titles = config.effective_exclude_titles();
     let mut filtered: Vec<_> = windows
         .iter()
         .filter(|w| {
@@ -255,7 +256,7 @@ pub fn apply_tiling_internal(state: &AppState) -> bool {
                     .exclude_processes
                     .iter()
                     .any(|p| w.process_name.contains(p))
-                && !config.exclude_titles.iter().any(|t| w.title.contains(t))
+                && !exclude_titles.iter().any(|t| w.title.contains(t))
                 && (w.rect.3 - w.rect.1) >= min_h
         })
         .collect();
@@ -345,6 +346,7 @@ pub fn get_window_list(state: State<AppState>) -> Vec<desktop::WindowInfo> {
     let config = state.config.lock().unwrap();
     let windows = desktop::get_visible_windows();
     let min_h = config.min_window_height;
+    let exclude_titles = config.effective_exclude_titles();
 
     windows
         .into_iter()
@@ -354,7 +356,7 @@ pub fn get_window_list(state: State<AppState>) -> Vec<desktop::WindowInfo> {
                     .exclude_processes
                     .iter()
                     .any(|p| w.process_name.contains(p))
-                && !config.exclude_titles.iter().any(|t| w.title.contains(t))
+                && !exclude_titles.iter().any(|t| w.title.contains(t))
                 && (w.rect.3 - w.rect.1) >= min_h
         })
         .collect()

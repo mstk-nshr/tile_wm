@@ -26,6 +26,19 @@ pub struct Config {
     pub inner_spacing: i32,
 }
 
+impl Config {
+    /// Returns exclude_titles with "PopupHost" always included.
+    /// Even if the user's config.toml does not contain "PopupHost", it will be
+    /// treated as excluded at runtime.
+    pub fn effective_exclude_titles(&self) -> Vec<String> {
+        let mut titles = self.exclude_titles.clone();
+        if !titles.iter().any(|t| t == "PopupHost") {
+            titles.push("PopupHost".to_string());
+        }
+        titles
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
