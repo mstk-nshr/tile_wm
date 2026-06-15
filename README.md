@@ -2,179 +2,179 @@
 
 <img src="sample_taskbar.png" alt="tile_wm taskbar screenshot" width="700"/>
 
-**tile_wm** は、Windows 11 向けのカスタムトップタスクバーアプリケーションです。  
-仮想デスクトップの直感的な切り替えと、ウィンドウの自動タイリングをシンプルな UI で提供します。
+**tile_wm** is a custom top taskbar application for Windows 11.  
+It provides intuitive virtual desktop switching and automatic window tiling with a simple UI.
 
-[Tauri v2](https://v2.tauri.app/)（Rust + Web フロントエンド）で構築されており、軽量で高性能です。
-
----
-
-## 目次
-
-- [主な機能](#主な機能)
-  - [🖥️ 仮想デスクトップ管理](#️-仮想デスクトップ管理)
-  - [📐 ウィンドウタイリング](#-ウィンドウタイリング)
-  - [🔄 レイアウトサイクル / フリップ](#-レイアウトサイクル--フリップ)
-  - [📌 フロートモード](#-フロートモード)
-  - [🎯 ウィンドウのドラッグ＆ドロップ（仮想デスクトップ間移動）](#-ウィンドウのドラッグドロップ仮想デスクトップ間移動)
-  - [⌨️ ホットキー](#️-ホットキー)
-  - [📋 ポップアップメニュー](#-ポップアップメニュー)
-  - [⚙️ 設定ファイル](#️-設定ファイル)
-- [必要要件](#必要要件)
-- [ビルドと実行](#ビルドと実行)
-  - [開発モード](#開発モード)
-  - [プロダクションビルド](#プロダクションビルド)
-- [設定](#設定)
-  - [設定項目一覧](#設定項目一覧)
-  - [設定例](#設定例)
-- [プロジェクト構成](#プロジェクト構成)
-- [使用技術](#使用技術)
-- [ライセンス](#ライセンス)
+Built with [Tauri v2](https://v2.tauri.app/) (Rust + Web frontend), it is lightweight and high-performance.
 
 ---
 
-## 主な機能
+## Table of Contents
 
-### 🖥️ 仮想デスクトップ管理
-
-- タスクバー上のボタンで仮想デスクトップをワンクリック切り替え
-- Windows 標準の `Ctrl+Win+←/→` による切り替えにもリアルタイムで追従
-- レジストリ（`HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops`）を監視し、現在のデスクトップ番号を正確に取得
-- 各デスクトップごとに独立したタイリングモードを保持
-
-### 📐 ウィンドウタイリング
-
-アクティブな仮想デスクトップ上のウィンドウを、選択したレイアウトに自動整列します。
-
-| モード | アイコン | レイアウト |
-|--------|----------|-----------|
-| **Free** | 🆓 | タイリングなし（自由配置） |
-| **2Win** | 2️⃣ | 左右 2 分割（左メイン＋右）↔（右メイン＋左） |
-| **3Win** | 3️⃣ | 左メイン + 右上 + 右下 ↕ 右メイン + 左上 + 左下 |
-| **4Win** | 4️⃣ | 2×2 グリッド（メイン領域の位置を切り替え可能） |
-
-- メインウィンドウを基準に、サブウィンドウが自動配置されます
-- ウィンドウの増減を自動検出し、タイリングを再適用（デバウンス処理付き）
-- タイリング対象から除外するウィンドウタイトル・プロセス名を設定可能
-
-### 🔄 レイアウトサイクル / フリップ
-
-- **サイクル**: 同じタイリングモードをもう一度クリックすると、メイン領域の位置が左右/上下に入れ替わります（例: 左メイン→右メイン）
-- **フリップ**: `Ctrl` を押しながら 2Win/3Win/4Win ボタンをクリックすると、`flip_main` 設定がトグルされ、すべてのデスクトップのメイン領域の向きが反転します
-
-### 📌 フロートモード
-
-- Free モード時にタスクバーの **メニューボタン（⋮）** をドラッグすることで、タスクバー自体を画面上の任意の位置に移動可能
-- フロート位置は設定ファイルに自動保存され、次回起動時に復元されます
-- フロート中はウィンドウリストとデスクトップ切り替え機能もそのまま利用可能
-
-### 🎯 ウィンドウのドラッグ＆ドロップ（仮想デスクトップ間移動）
-
-- タスクバー上のアプリアイコンを別のデスクトップボタンにドラッグ＆ドロップすると、そのウィンドウを移動先の仮想デスクトップに移動できます
-- 移動先のデスクトップに自動で切り替わり、移動したウィンドウにフォーカスが当たります
-
-### ⌨️ ホットキー
-
-低レベルキーボードフック（`WH_KEYBOARD_LL`）を使用し、以下のホットキーをアプリ横断で提供します：
-
-| ホットキー | 機能 |
-|-----------|------|
-| `Ctrl + Alt + Win + F12` | フォアグラウンドウィンドウを右隣のデスクトップに移動 |
-| `Ctrl + Alt + Win + F11` | フォアグラウンドウィンドウを左隣のデスクトップに移動 |
-
-移動後、移動先のデスクトップに自動で切り替わり、移動したウィンドウにフォーカスが戻ります。
-
-### 📋 ポップアップメニュー
-
-タスクバー左端のメニューボタン（⋮）をクリックすると表示されるコンテキストメニュー：
-
-- **📝 Edit config.toml** — 設定ファイルを規定のエディタで開く
-- **❓ Help** — バージョン情報と簡単な使い方を表示
-- **Close menu** — メニューを閉じる
-- **Exit** — アプリケーションを終了
-
-メニューは `Escape` キー、またはフォーカス喪失時に自動で閉じます。
-
-### ⚙️ 設定ファイル
-
-- `%LOCALAPPDATA%\tile_wm\config.toml` に自動生成
-- 外観（色・サイズ）、タイリングパラメータ、スペーシングなどを TOML 形式で設定可能
-- 設定変更はメニューから直接ファイルを編集するか、アプリの設定 UI から即時反映
+- [Main Features](#main-features)
+  - [🖥️ Virtual Desktop Management](#️-virtual-desktop-management)
+  - [📐 Window Tiling](#-window-tiling)
+  - [🔄 Layout Cycle / Flip](#-layout-cycle--flip)
+  - [📌 Float Mode](#-float-mode)
+  - [🎯 Window Drag & Drop (Moving Between Virtual Desktops)](#-window-drag-drop-moving-between-virtual-desktops)
+  - [⌨️ Hotkeys](#️-hotkeys)
+  - [📋 Popup Menu](#-popup-menu)
+  - [⚙️ Configuration File](#️-configuration-file)
+- [Requirements](#requirements)
+- [Build and Run](#build-and-run)
+  - [Development Mode](#development-mode)
+  - [Production Build](#production-build)
+- [Configuration](#configuration)
+  - [Configuration Items List](#configuration-items-list)
+  - [Configuration Example](#configuration-example)
+- [Project Structure](#project-structure)
+- [Used Technologies](#used-technologies)
+- [License](#license)
 
 ---
 
-## 必要要件
+## Main Features
 
-| 項目 | バージョン / 要件 |
-|------|------------------|
+### 🖥️ Virtual Desktop Management
+
+- Switch virtual desktops with a single click using buttons on the taskbar
+- Follows real-time switching via Windows standard `Ctrl+Win+←/→`
+- Monitors the registry (`HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops`) to accurately obtain the current desktop number
+- Each virtual desktop maintains its own independent tiling mode
+
+### 📐 Window Tiling
+
+Automatically arranges windows on the active virtual desktop according to the selected layout.
+
+| Mode | Icon | Layout |
+|------|------|--------|
+| **Free** | 🆓 | No tiling (free placement) |
+| **2Win** | 2️⃣ | Left/right split (left main + right) ↔ (right main + left) |
+| **3Win** | 3️⃣ | Left main + right upper + right lower ↕ Right main + left upper + left lower |
+| **4Win** | 4️⃣ | 2×2 grid (main area position can be switched) |
+
+- Sub-windows are automatically arranged relative to the main window
+- Automatically detects window increases/decreases and re-applies tiling (with debounce processing)
+- Possible to set window titles and process names to exclude from tiling
+
+### 🔄 Layout Cycle / Flip
+
+- **Cycle**: Clicking the same tiling mode button again swaps the main area position left/right or up/down (e.g., left main → right main)
+- **Flip**: Holding `Ctrl` while clicking a 2Win/3Win/4Win button toggles the `flip_main` setting, flipping the main area orientation for all desktops
+
+### 📌 Float Mode
+
+- In Free mode, dragging the taskbar menu button (⋮) moves the taskbar to any position on the screen
+- Float position is automatically saved to the configuration file and restored on next startup
+- While floating, the window list and desktop switching functions remain available
+
+### 🎯 Window Drag & Drop (Moving Between Virtual Desktops)
+
+- Dragging an application icon on the taskbar to another desktop button moves that window to the destination virtual desktop
+- Automatically switches to the destination desktop and focuses the moved window
+
+### ⌨️ Hotkeys
+
+Using a low-level keyboard hook (`WH_KEYBOARD_LL`), the following hotkeys are provided application-wide:
+
+| Hotkey | Function |
+|--------|----------|
+| `Ctrl + Alt + Win + F12` | Move foreground window to the right desktop |
+| `Ctrl + Alt + Win + F11` | Move foreground window to the left desktop |
+
+After moving, automatically switches to the destination desktop and returns focus to the moved window.
+
+### 📋 Popup Menu
+
+Clicking the menu button (⋮) at the left end of the taskbar displays a context menu:
+
+- **📝 Edit config.toml** — Open the configuration file in the default editor
+- **❓ Help** — Show version information and a brief usage guide
+- **Close menu** — Close the menu
+- **Exit** — Exit the application
+
+The menu automatically closes when the `Escape` key is pressed or focus is lost.
+
+### ⚙️ Configuration File
+
+- Automatically generated at `%LOCALAPPDATA%\tile_wm\config.toml`
+- Appearance (colors, size), tiling parameters, spacing, etc. can be set in TOML format
+- Configuration changes can be made by directly editing the file from the menu or via the app's settings UI for immediate reflection
+
+---
+
+## Requirements
+
+| Item | Version / Requirement |
+|------|-----------------------|
 | **OS** | Windows 11 |
-| **Rust** | 2021 Edition 以降（[rustup](https://rustup.rs/) でインストール） |
-| **Node.js** | 18 以降（[Node.js](https://nodejs.org/)） |
-| **npm** | 9 以降 |
+| **Rust** | 2021 Edition or later ([rustup](https://rustup.rs/) for installation) |
+| **Node.js** | 18 or later ([Node.js](https://nodejs.org/)) |
+| **npm** | 9 or later |
 
 ---
 
-## ビルドと実行
+## Build and Run
 
-### 開発モード
+### Development Mode
 
 ```bash
-# リポジトリをクローン
+# Clone the repository
 git clone https://github.com/yourusername/tile_wm.git
 cd tile_wm
 
-# フロントエンド依存関係をインストール
+# Install frontend dependencies
 npm install
 
-# 開発サーバー起動（ホットリロード付き Tauri デスクトップアプリ）
+# Start development server (hot-reload Tauri desktop app)
 npm run tauri dev
 ```
 
-### プロダクションビルド
+### Production Build
 
 ```bash
-# フロントエンドをビルドし、Rust バイナリをコンパイル
+# Build frontend and compile Rust binary
 npm run tauri build
 ```
 
-実行ファイルは `src-tauri/target/release/tile_wm.exe` に生成されます。
+The executable is generated at `src-tauri/target/release/tile_wm.exe`.
 
-> **注意**: 初回ビルド時は Tauri のシステム依存関係のインストールが必要な場合があります。詳細は [Tauri v2 公式ドキュメント](https://v2.tauri.app/start/prerequisites/) を参照してください。
+> **Note**: On first build, Tauri system dependencies may need to be installed. See the [Tauri v2 Prerequisites Guide](https://v2.tauri.app/start/prerequisites/) for details.
 
 ---
 
-## 設定
+## Configuration
 
-設定ファイルは初回起動時に `%LOCALAPPDATA%\tile_wm\config.toml` に自動生成されます。
-メニューの **📝 Edit config.toml** からも直接開くことができます。
+The configuration file is automatically generated at `%LOCALAPPDATA%\tile_wm\config.toml` on first launch.  
+It can also be opened directly via the menu's **📝 Edit config.toml**.
 
-### 設定項目一覧
+### Configuration Items List
 
-| キー | 型 | デフォルト | 説明 |
-|------|-----|-----------|------|
-| `bar_height` | 整数 | `40` | タスクバーの高さ（ピクセル） |
-| `split_ratio_x` | 整数 | `50` | 水平方向の分割比率（%） |
-| `split_ratio_y` | 整数 | `50` | 垂直方向の分割比率（%） |
-| `exclude_titles` | 文字列配列 | `[]` | タイリングから除外するウィンドウタイトルの部分一致リスト |
-| `exclude_processes` | 文字列配列 | `["tile_wm.exe"]` | タイリングから除外するプロセス名リスト |
-| `window_x` | 整数 | `100` | タスクバーウィンドウの X 座標（フロート位置） |
-| `window_y` | 整数 | `100` | タスクバーウィンドウの Y 座標（フロート位置） |
-| `window_bg_rgba` | 整数配列 | `[32, 32, 32, 255]` | タスクバー背景色 (RGBA) |
-| `button_fg_rgb` | 整数配列 | `[136, 136, 136]` | ボタンの文字色 (RGB) |
-| `button_bg_rgb` | 整数配列 | `[32, 32, 32]` | ボタンの背景色 (RGB) |
-| `button_highlight_fg_rgb` | 整数配列 | `[255, 255, 255]` | ボタンホバー時の文字色 (RGB) |
-| `button_highlight_bg_rgb` | 整数配列 | `[255, 255, 255]` | ボタンホバー時の背景色 (RGB) |
-| `flip_main` | 真理値 | `false` | タイリング時のメイン領域の向きを反転 |
-| `min_window_height` | 整数 | `220` | タイリング時の最小ウィンドウ高さ（ピクセル） |
-| `top_spacing` | 整数 | `40` | 画面上部の余白（タスクバー分） |
-| `bottom_spacing` | 整数 | `10` | 画面下部の余白 |
-| `left_spacing` | 整数 | `10` | 画面左端の余白 |
-| `right_spacing` | 整数 | `10` | 画面右端の余白 |
-| `inner_spacing` | 整数 | `10` | タイリング時のウィンドウ間の余白 |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `bar_height` | integer | `40` | Taskbar height (pixels) |
+| `split_ratio_x` | integer | `50` | Horizontal split ratio (%) |
+| `split_ratio_y` | integer | `50` | Vertical split ratio (%) |
+| `exclude_titles` | string array | `[]` | List of window title substrings to exclude from tiling |
+| `exclude_processes` | string array | `["tile_wm.exe"]` | List of process names to exclude from tiling |
+| `window_x` | integer | `100` | Taskbar window X coordinate (float position) |
+| `window_y` | integer | `100` | Taskbar window Y coordinate (float position) |
+| `window_bg_rgba` | integer array | `[32, 32, 32, 255]` | Taskbar background color (RGBA) |
+| `button_fg_rgb` | integer array | `[136, 136, 136]` | Button text color (RGB) |
+| `button_bg_rgb` | integer array | `[32, 32, 32]` | Button background color (RGB) |
+| `button_highlight_fg_rgb` | integer array | `[255, 255, 255]` | Button hover text color (RGB) |
+| `button_highlight_bg_rgb` | integer array | `[255, 255, 255]` | Button hover background color (RGB) |
+| `flip_main` | boolean | `false` | Flip main area orientation when tiling |
+| `min_window_height` | integer | `220` | Minimum window height for tiling (pixels) |
+| `top_spacing` | integer | `40` | Top screen margin (taskbar height) |
+| `bottom_spacing` | integer | `10` | Bottom screen margin |
+| `left_spacing` | integer | `10` | Left screen margin |
+| `right_spacing` | integer | `10` | Right screen margin |
+| `inner_spacing` | integer | `10` | Inner spacing between windows when tiling |
 
-> **補足**: 設定ファイル内のキー名はスネークケース（`snake_case`）で記述してください。
+> **Supplementary**: Keys in the configuration file should be written in snake_case.
 
-### 設定例
+### Configuration Example
 
 ```toml
 bar_height = 36
@@ -200,63 +200,63 @@ inner_spacing = 6
 
 ---
 
-## プロジェクト構成
+## Project Structure
 
 ```
 tile_wm/
-├── index.html                  # メインウィンドウ（タスクバー）の HTML
-├── menu.html                   # ポップアップメニューの HTML
-├── package.json                # フロントエンド依存関係
-├── vite.config.ts              # Vite ビルド設定
-├── specification.md            # 設計仕様書
-├── sample_taskbar.png          # スクリーンショット
+├── index.html                  # Main window (taskbar) HTML
+├── menu.html                   # Popup menu HTML
+├── package.json                # Frontend dependencies
+├── vite.config.ts              # Vite build configuration
+├── specification.md            # Design specification
+├── sample_taskbar.png          # Screenshot
 ├── public/
-│   └── icons/                  # タイリングモードアイコン
+│   └── icons/                  # Tiling mode icons
 │       ├── free.png
 │       ├── 2Win.png / 2Win-R.png
 │       ├── 3Win.png / 3Win-R.png
 │       └── 4Win.png / 4Win-R.png
-├── src/                        # フロントエンド（JavaScript / CSS）
-│   ├── main.js                 # メインウィンドウのロジック
-│   ├── menu.js                 # ポップアップメニューのロジック
-│   ├── styles.css              # タスクバーのスタイル
-│   └── menu.css                # メニューのスタイル
-└── src-tauri/                  # Rust バックエンド
-    ├── Cargo.toml              # Rust 依存関係
-    ├── tauri.conf.json         # Tauri 設定
-    ├── icons/                  # アプリアイコン
+├── src/                        # Frontend (JavaScript / CSS)
+│   ├── main.js                 # Main window logic
+│   ├── menu.js                 # Popup menu logic
+│   ├── styles.css              # Taskbar styles
+│   └── menu.css                # Menu styles
+└── src-tauri/                  # Rust backend
+    ├── Cargo.toml              # Rust dependencies
+    ├── tauri.conf.json         # Tauri configuration
+    ├── icons/                  # App icons
     └── src/
-        ├── main.rs             # エントリポイント
-        ├── lib.rs              # アプリ初期化・モジュール管理
-        ├── config.rs           # 設定ファイルの読み書き
-        ├── app_bar.rs          # Windows AppBar 登録・ウィンドウ配置
-        ├── desktop.rs          # 仮想デスクトップ管理（レジストリ / COM / winvd）
-        ├── tiling.rs           # タイリングレイアウト計算エンジン
-        ├── commands.rs         # Tauri IPC コマンド（フロントエンド↔バックエンド）
-        ├── hotkey.rs           # グローバルホットキー（WH_KEYBOARD_LL）
-        └── win_event.rs        # ウィンドウ増減検出・自動タイリング
+        ├── main.rs             # Entry point
+        ├── lib.rs              # App initialization & module management
+        ├── config.rs           # Configuration file read/write
+        ├── app_bar.rs          # Windows AppBar registration & window placement
+        ├── desktop.rs          # Virtual desktop management (registry / COM / winvd)
+        ├── tiling.rs           # Tiling layout calculation engine
+        ├── commands.rs         # Tauri IPC commands (frontend ↔ backend)
+        ├── hotkey.rs           # Global hotkeys (WH_KEYBOARD_LL)
+        └── win_event.rs        # Window increase/decrease detection & automatic tiling
 ```
 
 ---
 
-## 使用技術
+## Used Technologies
 
-| カテゴリ | 技術 |
-|---------|------|
-| **フロントエンド** | [Vite](https://vitejs.dev/) + Vanilla JS + CSS |
-| **デスクトップフレームワーク** | [Tauri v2](https://v2.tauri.app/) |
-| **バックエンド** | [Rust](https://www.rust-lang.org/) 2021 Edition |
+| Category | Technology |
+|----------|------------|
+| **Frontend** | [Vite](https://vitejs.dev/) + Vanilla JS + CSS |
+| **Desktop Framework** | [Tauri v2](https://v2.tauri.app/) |
+| **Backend** | [Rust](https://www.rust-lang.org/) 2021 Edition |
 | **Windows API** | [windows-rs](https://github.com/microsoft/windows-rs) 0.58 |
-| **シリアライゼーション** | [serde](https://serde.rs/) / [toml](https://github.com/toml-rs/toml) |
-| **仮想デスクトップ API** | [winvd](https://crates.io/crates/winvd) 0.0.49 |
-| **ロギング** | [log](https://crates.io/crates/log) |
+| **Serialization** | [serde](https://serde.rs/) / [toml](https://github.com/toml-rs/toml) |
+| **Virtual Desktop API** | [winvd](https://crates.io/crates/winvd) 0.0.49 |
+| **Logging** | [log](https://crates.io/crates/log) |
 
 ---
 
-## ライセンス
+## License
 
 [MIT](./LICENSE)
 
 ---
 
-> **tile_wm** — Windows 11 のデスクトップ管理を、より快適に。
+> **tile_wm** — Making desktop management on Windows 11 more comfortable.
