@@ -244,12 +244,13 @@ pub fn apply_tiling_internal(state: &AppState) -> bool {
     // Get visible windows on current desktop
     let windows = desktop::get_visible_windows();
 
-    // Filter excluded, cloaked, and too-short windows
+    // Filter excluded, cloaked, topmost, and too-short windows
     let min_h = config.min_window_height;
     let mut filtered: Vec<_> = windows
         .iter()
         .filter(|w| {
             !w.is_cloaked
+                && !w.is_topmost
                 && !config
                     .exclude_processes
                     .iter()

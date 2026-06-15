@@ -510,9 +510,9 @@ async function updateDesktopIcons() {
             img.src = app.is_uwp
               ? await cropAndResizeImage(app.icon_base64, uwpIconSize)
               : app.icon_base64;
-            // Grayscale: other desktops, or minimized windows on the current desktop
+            // Grayscale: other desktops, minimized windows, or topmost windows on the current desktop
             const desktopNum = parseInt(numStr, 10);
-            if (desktopNum !== currentDesktop || app.is_minimized) {
+            if (desktopNum !== currentDesktop || app.is_minimized || app.is_topmost) {
               img.style.filter = "grayscale(1)";
               img.style.opacity = "0.6";
             }

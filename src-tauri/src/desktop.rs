@@ -243,6 +243,7 @@ pub struct WindowInfo {
     pub is_visible: bool,
     pub is_minimized: bool,
     pub is_cloaked: bool,
+    pub is_topmost: bool,
 }
 
 pub fn get_visible_windows() -> Vec<WindowInfo> {
@@ -315,6 +316,7 @@ unsafe extern "system" fn enum_window_callback(hwnd: HWND, lparam: LPARAM) -> BO
     let mut rect = RECT::default();
     let _ = GetWindowRect(hwnd, &mut rect);
     let is_minimized = IsIconic(hwnd).as_bool();
+    let is_topmost = (GetWindowLongW(hwnd, GWL_EXSTYLE) & (WS_EX_TOPMOST.0 as i32)) != 0;
 
     windows.push(WindowInfo {
         hwnd: hwnd.0 as isize,
@@ -324,6 +326,7 @@ unsafe extern "system" fn enum_window_callback(hwnd: HWND, lparam: LPARAM) -> BO
         is_visible: true,
         is_minimized,
         is_cloaked: is_cloaked.as_bool(),
+        is_topmost,
     });
 
     TRUE
@@ -339,6 +342,7 @@ pub struct DesktopApp {
     /// to render them at a larger CSS size than non-UWP icons.
     pub is_uwp: bool,
     pub is_minimized: bool,
+    pub is_topmost: bool,
 }
 
 fn base64_encode(data: &[u8]) -> String {
@@ -876,6 +880,9 @@ pub fn get_all_desktops_apps(
                     }
 
                     let is_minimized = unsafe { IsIconic(hwnd).as_bool() };
+                    let is_topmost = unsafe {
+                        (GetWindowLongW(hwnd, GWL_EXSTYLE) & (WS_EX_TOPMOST.0 as i32)) != 0
+                    };
 
                     apps.push(DesktopApp {
                         hwnd: hwnd.0 as isize,
@@ -883,6 +890,7 @@ pub fn get_all_desktops_apps(
                         icon_base64,
                         is_uwp,
                         is_minimized,
+                        is_topmost,
                     });
                 }
             }
