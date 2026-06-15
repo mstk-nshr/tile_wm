@@ -19,6 +19,11 @@ pub struct Config {
     pub button_highlight_bg_rgb: [u8; 3],
     pub flip_main: bool,
     pub min_window_height: i32,
+    pub top_spacing: i32,
+    pub bottom_spacing: i32,
+    pub left_spacing: i32,
+    pub right_spacing: i32,
+    pub inner_spacing: i32,
 }
 
 impl Default for Config {
@@ -38,6 +43,11 @@ impl Default for Config {
             button_highlight_bg_rgb: [255, 255, 255],
             flip_main: false,
             min_window_height: 220,
+            top_spacing: 40,
+            bottom_spacing: 10,
+            left_spacing: 10,
+            right_spacing: 10,
+            inner_spacing: 10,
         }
     }
 }

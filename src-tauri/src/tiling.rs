@@ -41,6 +41,11 @@ pub struct TilingConfig {
     pub split_ratio_x: i32,
     pub split_ratio_y: i32,
     pub flip_main: bool,
+    pub top_spacing: i32,
+    pub bottom_spacing: i32,
+    pub left_spacing: i32,
+    pub right_spacing: i32,
+    pub inner_spacing: i32,
 }
 
 pub fn calculate_tiles(
@@ -48,37 +53,40 @@ pub fn calculate_tiles(
     config: TilingConfig,
     window_count: usize,
 ) -> Vec<TileRegion> {
-    // Bar height offset - tiles start below the taskbar
-    let bar_height = 40;
-    let work_y = config.monitor_y + bar_height;
-    let work_h = config.monitor_h - bar_height;
+    // Work area with outer spacing applied
+    let work_x = config.monitor_x + config.left_spacing;
+    let work_y = config.monitor_y + config.top_spacing;
+    let work_w = config.monitor_w - config.left_spacing - config.right_spacing;
+    let work_h = config.monitor_h - config.top_spacing - config.bottom_spacing;
 
     let mut tiles = match mode {
         TilingMode::Free => vec![],
 
         TilingMode::TwoWindows => {
             let ratio = config.split_ratio_x as f64 / 100.0;
-            let left_w = (config.monitor_w as f64 * ratio) as i32;
+            // Available width after subtracting inner spacing gap between left and right
+            let avail_w = work_w - config.inner_spacing;
+            let left_w = (avail_w as f64 * ratio) as i32;
             if window_count <= 1 {
                 vec![TileRegion {
-                    x: config.monitor_x,
+                    x: work_x,
                     y: work_y,
                     width: left_w,
                     height: work_h,
                 }]
             } else {
-                // Left main + right
+                let right_w = avail_w - left_w;
                 vec![
                     TileRegion {
-                        x: config.monitor_x,
+                        x: work_x,
                         y: work_y,
                         width: left_w,
                         height: work_h,
                     },
                     TileRegion {
-                        x: config.monitor_x + left_w,
+                        x: work_x + left_w + config.inner_spacing,
                         y: work_y,
-                        width: config.monitor_w - left_w,
+                        width: right_w,
                         height: work_h,
                     },
                 ]
@@ -87,28 +95,29 @@ pub fn calculate_tiles(
 
         TilingMode::ThreeWindows => {
             let ratio_x = config.split_ratio_x as f64 / 100.0;
-            let left_w = (config.monitor_w as f64 * ratio_x) as i32;
+            let avail_w = work_w - config.inner_spacing;
+            let left_w = (avail_w as f64 * ratio_x) as i32;
             if window_count <= 1 {
                 vec![TileRegion {
-                    x: config.monitor_x,
+                    x: work_x,
                     y: work_y,
                     width: left_w,
                     height: work_h,
                 }]
             } else if window_count == 2 {
                 // 3Win identity: main (left, full-height) + stack top (right, half-height)
-                let left_w = (config.monitor_w as f64 * ratio_x) as i32;
-                let right_w = config.monitor_w - left_w;
-                let right_h = work_h / 2;
+                let right_w = avail_w - left_w;
+                let avail_h = work_h - config.inner_spacing;
+                let right_h = avail_h / 2;
                 vec![
                     TileRegion {
-                        x: config.monitor_x,
+                        x: work_x,
                         y: work_y,
                         width: left_w,
                         height: work_h,
                     },
                     TileRegion {
-                        x: config.monitor_x + left_w,
+                        x: work_x + left_w + config.inner_spacing,
                         y: work_y,
                         width: right_w,
                         height: right_h,
@@ -116,27 +125,27 @@ pub fn calculate_tiles(
                 ]
             } else {
                 // Left main + right stack (top/bottom)
-                let left_w = (config.monitor_w as f64 * ratio_x) as i32;
-                let right_w = config.monitor_w - left_w;
-                let right_h = work_h / 2;
+                let right_w = avail_w - left_w;
+                let avail_h = work_h - config.inner_spacing;
+                let right_h = avail_h / 2;
                 vec![
                     TileRegion {
-                        x: config.monitor_x,
+                        x: work_x,
                         y: work_y,
                         width: left_w,
                         height: work_h,
                     },
                     TileRegion {
-                        x: config.monitor_x + left_w,
+                        x: work_x + left_w + config.inner_spacing,
                         y: work_y,
                         width: right_w,
                         height: right_h,
                     },
                     TileRegion {
-                        x: config.monitor_x + left_w,
-                        y: work_y + right_h,
+                        x: work_x + left_w + config.inner_spacing,
+                        y: work_y + right_h + config.inner_spacing,
                         width: right_w,
-                        height: work_h - right_h,
+                        height: avail_h - right_h,
                     },
                 ]
             }
@@ -145,13 +154,15 @@ pub fn calculate_tiles(
         TilingMode::FourWindows => {
             let ratio_x = config.split_ratio_x as f64 / 100.0;
             let ratio_y = config.split_ratio_y as f64 / 100.0;
-            let left_w = (config.monitor_w as f64 * ratio_x) as i32;
-            let top_h = (work_h as f64 * ratio_y) as i32;
+            let avail_w = work_w - config.inner_spacing;
+            let avail_h = work_h - config.inner_spacing;
+            let left_w = (avail_w as f64 * ratio_x) as i32;
+            let top_h = (avail_h as f64 * ratio_y) as i32;
 
             match window_count {
                 0..=1 => {
                     vec![TileRegion {
-                        x: config.monitor_x,
+                        x: work_x,
                         y: work_y,
                         width: left_w,
                         height: top_h,
@@ -159,77 +170,73 @@ pub fn calculate_tiles(
                 }
                 2 => {
                     // 4Win identity: top-left (main) + top-right (quadrant row)
-                    let left_w = (config.monitor_w as f64 * ratio_x) as i32;
+                    let right_w = avail_w - left_w;
                     vec![
                         TileRegion {
-                            x: config.monitor_x,
+                            x: work_x,
                             y: work_y,
                             width: left_w,
                             height: top_h,
                         },
                         TileRegion {
-                            x: config.monitor_x + left_w,
+                            x: work_x + left_w + config.inner_spacing,
                             y: work_y,
-                            width: config.monitor_w - left_w,
+                            width: right_w,
                             height: top_h,
                         },
                     ]
                 }
                 3 => {
                     // 4Win identity: top-left (main) + top-right + bottom-left (L-shape)
-                    let left_w = (config.monitor_w as f64 * ratio_x) as i32;
-                    let right_w = config.monitor_w - left_w;
+                    let right_w = avail_w - left_w;
                     vec![
                         TileRegion {
-                            x: config.monitor_x,
+                            x: work_x,
                             y: work_y,
                             width: left_w,
                             height: top_h,
                         },
                         TileRegion {
-                            x: config.monitor_x + left_w,
+                            x: work_x + left_w + config.inner_spacing,
                             y: work_y,
                             width: right_w,
                             height: top_h,
                         },
                         TileRegion {
-                            x: config.monitor_x,
-                            y: work_y + top_h,
+                            x: work_x,
+                            y: work_y + top_h + config.inner_spacing,
                             width: left_w,
-                            height: work_h - top_h,
+                            height: avail_h - top_h,
                         },
                     ]
                 }
                 _ => {
-                    // 4+ windows: 2x2 grid or main + 3 stack
-                    let left_w = (config.monitor_w as f64 * ratio_x) as i32;
-                    let right_w = config.monitor_w - left_w;
-                    let top_h = (work_h as f64 * ratio_y) as i32;
-
+                    // 4+ windows: 2x2 grid
+                    let right_w = avail_w - left_w;
                     vec![
                         TileRegion {
-                            x: config.monitor_x,
+                            x: work_x,
                             y: work_y,
                             width: left_w,
                             height: top_h,
                         },
                         TileRegion {
-                            x: config.monitor_x + left_w,
+                            x: work_x + left_w + config.inner_spacing,
                             y: work_y,
                             width: right_w,
                             height: top_h,
                         },
                         TileRegion {
-                            x: config.monitor_x,
-                            y: work_y + top_h,
+                            x: work_x,
+                            y: work_y + top_h + config.inner_spacing,
                             width: left_w,
-                            height: work_h - top_h,
+                            height: avail_h - top_h,
                         },
                         TileRegion {
-                            x: config.monitor_x + left_w,
-                            y: work_y + top_h,
+                            x: work_x + left_w + config.inner_spacing,
+                            y: work_y + top_h + config.inner_spacing,
                             width: right_w,
-                            height: work_h - top_h,
+                            height: avail_h - top_h,
                         },
                     ]
                 }

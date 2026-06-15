@@ -30,6 +30,11 @@ pub struct ConfigResponse {
     pub button_highlight_bg_rgb: [u8; 3],
     pub flip_main: bool,
     pub min_window_height: i32,
+    pub top_spacing: i32,
+    pub bottom_spacing: i32,
+    pub left_spacing: i32,
+    pub right_spacing: i32,
+    pub inner_spacing: i32,
 }
 
 #[tauri::command]
@@ -50,6 +55,11 @@ pub fn get_config(state: State<AppState>) -> ConfigResponse {
         button_highlight_bg_rgb: config.button_highlight_bg_rgb,
         flip_main: config.flip_main,
         min_window_height: config.min_window_height,
+        top_spacing: config.top_spacing,
+        bottom_spacing: config.bottom_spacing,
+        left_spacing: config.left_spacing,
+        right_spacing: config.right_spacing,
+        inner_spacing: config.inner_spacing,
     }
 }
 
@@ -73,6 +83,11 @@ pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: 
         config.button_highlight_bg_rgb = new_config.button_highlight_bg_rgb;
         config.flip_main = new_config.flip_main;
         config.min_window_height = new_config.min_window_height;
+        config.top_spacing = new_config.top_spacing;
+        config.bottom_spacing = new_config.bottom_spacing;
+        config.left_spacing = new_config.left_spacing;
+        config.right_spacing = new_config.right_spacing;
+        config.inner_spacing = new_config.inner_spacing;
         config::save_config(&config);
     }
 
@@ -263,6 +278,11 @@ pub fn apply_tiling_internal(state: &AppState) -> bool {
         split_ratio_x: config.split_ratio_x,
         split_ratio_y: config.split_ratio_y,
         flip_main: config.flip_main,
+        top_spacing: config.top_spacing,
+        bottom_spacing: config.bottom_spacing,
+        left_spacing: config.left_spacing,
+        right_spacing: config.right_spacing,
+        inner_spacing: config.inner_spacing,
     };
 
     let tiles = tiling::calculate_tiles(mode, config_tiling, filtered.len());
