@@ -338,6 +338,7 @@ pub struct DesktopApp {
     /// UWP logos typically contain generous padding, so the frontend may want
     /// to render them at a larger CSS size than non-UWP icons.
     pub is_uwp: bool,
+    pub is_minimized: bool,
 }
 
 fn base64_encode(data: &[u8]) -> String {
@@ -874,11 +875,14 @@ pub fn get_all_desktops_apps(
                         }
                     }
 
+                    let is_minimized = unsafe { IsIconic(hwnd).as_bool() };
+
                     apps.push(DesktopApp {
                         hwnd: hwnd.0 as isize,
                         process_name: process_name.clone(),
                         icon_base64,
                         is_uwp,
+                        is_minimized,
                     });
                 }
             }

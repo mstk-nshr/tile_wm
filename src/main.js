@@ -406,14 +406,14 @@ function cropAndResizeImage(dataUrl, targetSize) {
 let _lastAppsKey = "";
 let desktopAppOrders = {};
 function _appsFingerprint(desktopApps) {
-  // Cheap, stable signature: per-desktop list of hwnd+process_name.
-  // icon_base64 / is_uwp are intentionally excluded; we only care about
-  // whether the *set* of windows has changed.
-  const parts = [];
+  // Signature: per-desktop list of hwnd+process_name+minimized, plus
+  // currentDesktop so that desktop switches and minimize/restore changes
+  // force a DOM rebuild and thus the grayscale filter gets updated.
+  const parts = [`cd=${currentDesktop}`];
   for (const numStr of Object.keys(desktopApps).sort()) {
     const apps = desktopApps[numStr];
     const sig = apps
-      .map((a) => `${a.hwnd}:${a.process_name}`)
+      .map((a) => `${a.hwnd}:${a.process_name}:${a.is_minimized ? "m" : "a"}`)
       .join(",");
     parts.push(`${numStr}=[${sig}]`);
   }
@@ -510,6 +510,12 @@ async function updateDesktopIcons() {
             img.src = app.is_uwp
               ? await cropAndResizeImage(app.icon_base64, uwpIconSize)
               : app.icon_base64;
+            // Grayscale: other desktops, or minimized windows on the current desktop
+            const desktopNum = parseInt(numStr, 10);
+            if (desktopNum !== currentDesktop || app.is_minimized) {
+              img.style.filter = "grayscale(1)";
+              img.style.opacity = "0.6";
+            }
             btn.appendChild(img);
 
             iconsDiv.appendChild(btn);
