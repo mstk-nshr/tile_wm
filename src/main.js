@@ -149,10 +149,74 @@ async function init() {
   updateDesktopIcons();
   setInterval(updateDesktopIcons, 2000);
 
+  setupThumbnailHover();
+
   // Measure rendered content width and resize window to fit exactly
   requestAnimationFrame(() => {
     // Double rAF ensures layout is complete before measuring
     requestAnimationFrame(() => fitWindowToContent());
+  });
+}
+
+function setupThumbnailHover() {
+  let currentHoveredBtn = null;
+
+  document.addEventListener("mouseover", async (e) => {
+    const btn = e.target.closest(".desktop-btn, .float-desktop-btn");
+    if (!btn) return;
+    if (currentHoveredBtn === btn) return;
+
+    currentHoveredBtn = btn;
+    const num = parseInt(btn.dataset.desktop, 10);
+    if (isNaN(num)) return;
+
+    // 現在のデスクトップ（ホバー開始時点）のスクリーンショットをキャプチャ
+    try {
+      await invoke("capture_current_desktop");
+    } catch (err) {
+      console.error("Failed to capture screen:", err);
+    }
+
+    // 対象のデスクトップのサムネイルを取得して表示
+    try {
+      const thumb = await invoke("get_desktop_thumbnail", { number: num });
+      const canvasEl = btn.querySelector(".desktop-thumbnail-canvas");
+      
+      if (!thumb || !canvasEl || currentHoveredBtn !== btn) {
+        if (canvasEl) canvasEl.classList.add("hidden");
+        return;
+      }
+
+      canvasEl.width = thumb.width;
+      canvasEl.height = thumb.height;
+      const ctx = canvasEl.getContext("2d");
+      const clamped = new Uint8ClampedArray(thumb.rgba);
+      const imgData = new ImageData(clamped, thumb.width, thumb.height);
+      ctx.putImageData(imgData, 0, 0);
+
+      canvasEl.classList.remove("hidden");
+    } catch (err) {
+      console.error("Failed to get thumbnail:", err);
+    }
+  });
+
+  document.addEventListener("mouseout", (e) => {
+    const btn = e.target.closest(".desktop-btn, .float-desktop-btn");
+    if (!btn) return;
+    if (e.relatedTarget && btn.contains(e.relatedTarget)) return;
+
+    currentHoveredBtn = null;
+    const canvasEl = btn.querySelector(".desktop-thumbnail-canvas");
+    if (canvasEl) {
+      canvasEl.classList.add("hidden");
+    }
+  });
+
+  document.addEventListener("click", () => {
+    currentHoveredBtn = null;
+    document.querySelectorAll(".desktop-thumbnail-canvas").forEach(canvas => {
+      canvas.classList.add("hidden");
+    });
   });
 }
 
@@ -328,7 +392,16 @@ function createDesktopButtons(desktopList) {
     const btn = document.createElement("div");
     btn.className = "desktop-btn";
     btn.dataset.desktop = num;
-    btn.textContent = num;
+    
+    const label = document.createElement("span");
+    label.className = "desktop-num-label";
+    label.textContent = num;
+    btn.appendChild(label);
+
+    const canvas = document.createElement("canvas");
+    canvas.className = "desktop-thumbnail-canvas hidden";
+    btn.appendChild(canvas);
+
     container.appendChild(btn);
     desktopBtns.push(btn);
 
@@ -342,7 +415,16 @@ function createDesktopButtons(desktopList) {
     const fbtn = document.createElement("div");
     fbtn.className = "float-desktop-btn";
     fbtn.dataset.desktop = num;
-    fbtn.textContent = num;
+    
+    const flabel = document.createElement("span");
+    flabel.className = "desktop-num-label";
+    flabel.textContent = num;
+    fbtn.appendChild(flabel);
+
+    const fcanvas = document.createElement("canvas");
+    fcanvas.className = "desktop-thumbnail-canvas hidden";
+    fbtn.appendChild(fcanvas);
+
     floatDesktopBtns.appendChild(fbtn);
     floatDskBtns.push(fbtn);
   });

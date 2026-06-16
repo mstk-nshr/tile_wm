@@ -16,6 +16,7 @@ pub struct AppState {
     pub tiling_modes: Mutex<HashMap<i32, tiling::TilingMode>>,
     pub tiling_cycles: Mutex<HashMap<i32, i32>>,
     pub float_window_pos: Mutex<(i32, i32)>,
+    pub desktop_thumbnails: Mutex<HashMap<i32, desktop::ThumbnailData>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -35,6 +36,7 @@ pub fn run() {
             tiling_modes: Mutex::new(HashMap::new()),
             tiling_cycles: Mutex::new(HashMap::new()),
             float_window_pos: Mutex::new(float_pos),
+            desktop_thumbnails: Mutex::new(HashMap::new()),
         })
         .setup(move |app| {
             let window = app.get_webview_window("main").unwrap();
@@ -92,6 +94,8 @@ pub fn run() {
             commands::quit_app,
             commands::set_window_size,
             commands::toggle_flip_main,
+            commands::capture_current_desktop,
+            commands::get_desktop_thumbnail,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

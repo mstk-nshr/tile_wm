@@ -898,3 +898,132 @@ pub fn get_all_desktops_apps(
     }
     map
 }
+
+#[derive(serde::Serialize, Clone)]
+pub struct ThumbnailData {
+    pub width: i32,
+    pub height: i32,
+    pub rgba: Vec<u8>,
+}
+
+/// 現在のプライマリディスプレイの画面キャプチャを、指定した幅に縮小してRGBAピクセルデータとして取得する。
+pub fn capture_screen_thumbnail(target_width: i32) -> Result<ThumbnailData, String> {
+    unsafe {
+        let hwnd = HWND(std::ptr::null_mut());
+        let hdc_screen = GetDC(hwnd);
+        if hdc_screen.is_invalid() {
+            return Err("Failed to get screen DC".to_string());
+        }
+
+        let width = GetSystemMetrics(SM_CXSCREEN);
+        let height = GetSystemMetrics(SM_CYSCREEN);
+
+        if width <= 0 || height <= 0 {
+            ReleaseDC(hwnd, hdc_screen);
+            return Err("Invalid screen metrics".to_string());
+        }
+
+        let hdc_mem = CreateCompatibleDC(hdc_screen);
+        if hdc_mem.is_invalid() {
+            ReleaseDC(hwnd, hdc_screen);
+            return Err("Failed to create compatible DC".to_string());
+        }
+
+        let h_bitmap = CreateCompatibleBitmap(hdc_screen, width, height);
+        if h_bitmap.is_invalid() {
+            let _ = DeleteDC(hdc_mem);
+            ReleaseDC(hwnd, hdc_screen);
+            return Err("Failed to create compatible bitmap".to_string());
+        }
+
+        let h_old = SelectObject(hdc_mem, h_bitmap);
+
+        let success = BitBlt(
+            hdc_mem,
+            0,
+            0,
+            width,
+            height,
+            hdc_screen,
+            0,
+            0,
+            SRCCOPY,
+        );
+
+        if success.is_err() {
+            SelectObject(hdc_mem, h_old);
+            let _ = DeleteObject(h_bitmap);
+            let _ = DeleteDC(hdc_mem);
+            ReleaseDC(hwnd, hdc_screen);
+            return Err("BitBlt failed".to_string());
+        }
+
+        // ビットマップのピクセルデータを取得する (32bit BGRA)
+        let mut bmi = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: width,
+                biHeight: -height, // 上から下のビットマップ
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: 0, // BI_RGB
+                biSizeImage: 0,
+                biXPelsPerMeter: 0,
+                biYPelsPerMeter: 0,
+                biClrUsed: 0,
+                biClrImportant: 0,
+            },
+            bmiColors: [RGBQUAD::default(); 1],
+        };
+
+        let mut buf: Vec<u8> = vec![0; (width * height * 4) as usize];
+
+        let lines = GetDIBits(
+            hdc_screen,
+            h_bitmap,
+            0,
+            height as u32,
+            Some(buf.as_mut_ptr() as *mut _),
+            &mut bmi,
+            DIB_RGB_COLORS,
+        );
+
+        // クリーンアップ
+        SelectObject(hdc_mem, h_old);
+        let _ = DeleteObject(h_bitmap);
+        let _ = DeleteDC(hdc_mem);
+        ReleaseDC(hwnd, hdc_screen);
+
+        if lines == 0 {
+            return Err("GetDIBits failed".to_string());
+        }
+
+        // アスペクト比を維持して高さを決定する
+        let target_height = (target_width * height) / width;
+
+        // リサイズと BGRA -> RGBA 変換を同時に行う
+        let mut dst_rgba = vec![0u8; (target_width * target_height * 4) as usize];
+        for y in 0..target_height {
+            let src_y = (y * height) / target_height;
+            for x in 0..target_width {
+                let src_x = (x * width) / target_width;
+                let src_idx = ((src_y * width + src_x) * 4) as usize;
+                let dst_idx = ((y * target_width + x) * 4) as usize;
+
+                if src_idx + 3 < buf.len() {
+                    // BGRA から RGBA へ変換
+                    dst_rgba[dst_idx]     = buf[src_idx + 2]; // R
+                    dst_rgba[dst_idx + 1] = buf[src_idx + 1]; // G
+                    dst_rgba[dst_idx + 2] = buf[src_idx];     // B
+                    dst_rgba[dst_idx + 3] = buf[src_idx + 3]; // A
+                }
+            }
+        }
+
+        Ok(ThumbnailData {
+            width: target_width,
+            height: target_height,
+            rgba: dst_rgba,
+        })
+    }
+}

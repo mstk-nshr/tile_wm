@@ -688,3 +688,20 @@ pub fn move_window_to_desktop(hwnd: isize, desktop_number: i32) -> Result<(), St
     winvd::move_window_to_desktop(*desktop, &win_hwnd).map_err(|e| format!("move_window_to_desktop failed: {:?}", e))?;
     Ok(())
 }
+
+#[tauri::command]
+pub fn capture_current_desktop(state: State<AppState>) -> Result<(), String> {
+    let current = *state.current_desktop.lock().unwrap();
+    // 幅 240px でキャプチャする
+    let thumbnail = desktop::capture_screen_thumbnail(240)?;
+    
+    let mut thumbnails = state.desktop_thumbnails.lock().unwrap();
+    thumbnails.insert(current, thumbnail);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_desktop_thumbnail(number: i32, state: State<AppState>) -> Option<desktop::ThumbnailData> {
+    let thumbnails = state.desktop_thumbnails.lock().unwrap();
+    thumbnails.get(&number).cloned()
+}
