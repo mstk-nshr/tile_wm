@@ -476,7 +476,9 @@ async function updateDesktopIcons() {
           if (app.icon_base64) {
             const btn = document.createElement("div");
             btn.className = "desktop-app-btn";
-            btn.title = app.process_name;
+            btn.title = app.process_name.toLowerCase().endsWith(".exe") 
+              ? app.process_name.slice(0, -4) 
+              : app.process_name;
             btn.draggable = true;
             btn.addEventListener("dragstart", (e) => {
               btn.classList.add("dragging");
