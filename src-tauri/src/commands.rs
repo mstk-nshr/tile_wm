@@ -435,6 +435,14 @@ pub fn open_config_file() {
     }
 }
 
+#[tauri::command]
+pub fn open_help_url() {
+    const HELP_URL: &str = "https://github.com/mstk-nshr/tile_wm/blob/main/README.md";
+    if let Err(e) = open::that(HELP_URL) {
+        log::error!("Failed to open help URL: {}", e);
+    }
+}
+
 // ─── Menu Window Commands ──────────────────────────────────────────────────
 
 /// Show the menu window positioned near the main taskbar's menu button.

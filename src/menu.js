@@ -26,17 +26,11 @@ menuEditConfig.addEventListener("click", async () => {
 
 menuHelp.addEventListener("click", async () => {
   await closeMenu();
-  alert(
-    "tile_wm v0.1.0\n\n" +
-      "Top taskbar with virtual desktop switching\n" +
-      "and window tiling for Windows 11.\n\n" +
-      "Tiling modes:\n" +
-      "  Free - No tiling\n" +
-      "  2Win - Split left/right\n" +
-      "  3Win - Main + 2 stack\n" +
-      "  4Win - 2x2 grid\n\n" +
-      "Drag the menu button to reposition."
-  );
+  try {
+    await invoke("open_help_url");
+  } catch (e) {
+    console.error("open_help_url failed:", e);
+  }
 });
 
 menuClose.addEventListener("click", async () => {

@@ -86,6 +86,7 @@ pub fn run() {
             commands::toggle_devtools_size,
             commands::set_float_pos,
             commands::open_config_file,
+            commands::open_help_url,
             commands::show_menu_window,
             commands::hide_menu_window,
             commands::quit_app,
