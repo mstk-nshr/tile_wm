@@ -10,7 +10,7 @@ use crate::tiling;
 use crate::AppState;
 
 const MENU_WIDTH: i32 = 200;
-const MENU_HEIGHT: i32 = 200;
+const MENU_HEIGHT: i32 = 320;
 const MENU_OFFSET_X: i32 = 20; // メインウィンドウ左端からのオフセット（メニューボタンの位置に合わせる）
 const MENU_OFFSET_Y: i32 = 4; // メインウィンドウ下端からのオフセット
 
@@ -325,7 +325,10 @@ pub fn apply_tiling_internal(state: &AppState) -> bool {
 
     // Move focus to the main (first tiled) window so the user can immediately
     // interact with it, instead of keeping tile_wm as the active window.
-    if n > 0 {
+    // Skip if the menu is currently shown to avoid stealing focus and
+    // triggering the menu's focus-loss close logic.
+    let menu_shown = *state.menu_shown.lock().unwrap();
+    if n > 0 && !menu_shown {
         let main_idx = cycle as usize % filtered.len();
         unsafe {
             let main_hwnd: HWND = std::mem::transmute(filtered[main_idx].hwnd);
@@ -468,6 +471,9 @@ pub async fn show_menu_window(app: tauri::AppHandle) -> Result<(), String> {
 
     // Get or create the menu window
     let menu = if let Some(w) = app.get_webview_window("menu") {
+        // Window already exists (created from tauri.conf.json) — resize it
+        w.set_size(tauri::PhysicalSize::new(MENU_WIDTH, MENU_HEIGHT))
+            .map_err(|e| format!("set_size: {}", e))?;
         w
     } else {
         tauri::WebviewWindowBuilder::new(&app, "menu", tauri::WebviewUrl::App("menu.html".into()))
@@ -498,12 +504,90 @@ pub async fn show_menu_window(app: tauri::AppHandle) -> Result<(), String> {
     menu.show().map_err(|e| format!("show: {}", e))?;
     menu.set_focus().map_err(|e| format!("set_focus: {}", e))?;
 
+    // ─── Focus-loss monitor ─────────────────────────────────────────────
+    // Increment generation (invalidates any stale monitor thread)
+    let gen = {
+        let state = app.state::<crate::AppState>();
+        let mut g = state.menu_generation.lock().unwrap();
+        *g += 1;
+        *g
+    };
+
+    // Mark as intentionally shown
+    {
+        let state = app.state::<crate::AppState>();
+        *state.menu_shown.lock().unwrap() = true;
+    }
+
+    // Get menu & main HWNDs for foreground comparison (cast to isize for thread-safety)
+    let menu_hwnd_raw: isize = menu.hwnd().map_err(|e| format!("menu hwnd: {}", e))?.0 as isize;
+    let main_hwnd_raw: isize = main_hwnd.0 as isize;
+
+    // Spawn a background thread that checks the foreground window every 200ms.
+    // - Foreground == menu           → has focus, do nothing
+    // - Foreground == main (taskbar) → background process stole focus, re-focus menu
+    // - Foreground == other window   → user clicked outside, close menu
+    let app_clone = app.clone();
+    std::thread::spawn(move || {
+        use std::time::Duration;
+
+        // Wait a short moment for the window to settle after show+focus
+        std::thread::sleep(Duration::from_millis(400));
+
+        loop {
+            std::thread::sleep(Duration::from_millis(200));
+
+            let state = app_clone.state::<crate::AppState>();
+
+            // Exit if generation changed (new show happened = stale thread)
+            if *state.menu_generation.lock().unwrap() != gen {
+                return;
+            }
+
+            // Exit if intentionally hidden
+            if !*state.menu_shown.lock().unwrap() {
+                return;
+            }
+            drop(state);
+
+            // Check the foreground window
+            let fg_hwnd: isize = unsafe { GetForegroundWindow().0 as isize };
+            if fg_hwnd == menu_hwnd_raw {
+                // Menu still has focus → nothing to do
+                continue;
+            }
+            if fg_hwnd == main_hwnd_raw {
+                // Background process focused the main taskbar → re-focus menu
+                if let Some(win) = app_clone.get_webview_window("menu") {
+                    let _ = win.set_focus();
+                }
+                continue;
+            }
+            // Foreground is some other window → debounce, then hide menu
+            std::thread::sleep(Duration::from_millis(100));
+            let fg_hwnd2: isize = unsafe { GetForegroundWindow().0 as isize };
+            if fg_hwnd2 != menu_hwnd_raw && fg_hwnd2 != main_hwnd_raw {
+                if let Some(s) = app_clone.try_state::<crate::AppState>() {
+                    *s.menu_shown.lock().unwrap() = false;
+                }
+                if let Some(win) = app_clone.get_webview_window("menu") {
+                    let _ = win.hide();
+                }
+                return;
+            }
+        }
+    });
+
     Ok(())
 }
 
 /// Hide the menu window if it's currently shown.
 #[tauri::command]
 pub fn hide_menu_window(app: tauri::AppHandle) -> Result<(), String> {
+    // Clear flag so any monitor thread exits
+    if let Some(state) = app.try_state::<crate::AppState>() {
+        *state.menu_shown.lock().unwrap() = false;
+    }
     if let Some(menu) = app.get_webview_window("menu") {
         menu.hide().map_err(|e| format!("hide: {}", e))?;
     }

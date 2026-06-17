@@ -190,17 +190,28 @@ fn fire_move(direction: i32, target_hwnd: HWND) {
     std::thread::sleep(std::time::Duration::from_millis(300));
     
     // ── Step 3: 移動したウィンドウにフォーカスを再設定 ──
-    unsafe {
-        use windows::Win32::System::Threading::GetCurrentProcessId;
-        let _ = AllowSetForegroundWindow(GetCurrentProcessId());
+    // Skip if the menu is currently shown to avoid stealing focus and
+    // triggering the menu's focus-loss close logic.
+    let menu_shown = APP_HANDLE.get().and_then(|hm| {
+        hm.lock().ok().and_then(|handle| {
+            handle.try_state::<crate::AppState>()
+                .map(|s| *s.menu_shown.lock().unwrap())
+        })
+    }).unwrap_or(false);
 
-        let _ = SetForegroundWindow(target_hwnd);
-        let _ = SetFocus(target_hwnd);
+    if !menu_shown {
+        unsafe {
+            use windows::Win32::System::Threading::GetCurrentProcessId;
+            let _ = AllowSetForegroundWindow(GetCurrentProcessId());
 
-        println!(
-            "[tile_wm] Re-focused window hwnd={:?}",
-            target_hwnd
-        );
+            let _ = SetForegroundWindow(target_hwnd);
+            let _ = SetFocus(target_hwnd);
+
+            println!(
+                "[tile_wm] Re-focused window hwnd={:?}",
+                target_hwnd
+            );
+        }
     }
 
     // ── 内部カウンター更新 ──

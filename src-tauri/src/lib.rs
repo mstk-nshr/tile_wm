@@ -17,6 +17,12 @@ pub struct AppState {
     pub tiling_cycles: Mutex<HashMap<i32, i32>>,
     pub float_window_pos: Mutex<(i32, i32)>,
     pub desktop_thumbnails: Mutex<HashMap<i32, desktop::ThumbnailData>>,
+    /// Set to true while the menu is intentionally shown.
+    pub menu_shown: Mutex<bool>,
+    /// Incremented each time show_menu_window is called.
+    /// A monitor thread compares this against its birth generation
+    /// to detect stale threads and exit.
+    pub menu_generation: Mutex<u64>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -37,6 +43,8 @@ pub fn run() {
             tiling_cycles: Mutex::new(HashMap::new()),
             float_window_pos: Mutex::new(float_pos),
             desktop_thumbnails: Mutex::new(HashMap::new()),
+            menu_shown: Mutex::new(false),
+            menu_generation: Mutex::new(0),
         })
         .setup(move |app| {
             let window = app.get_webview_window("main").unwrap();
@@ -48,6 +56,7 @@ pub fn run() {
                 config.window_x,
                 config.window_y,
             )?;
+
 
             // Start desktop listener thread
             let app_handle = app.handle().clone();

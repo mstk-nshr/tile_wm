@@ -10,6 +10,13 @@
     <div id="menu-dropdown" class="dropdown">
       <div class="dropdown-item disabled" id="menu-version">tile_wm v0.1.0</div>
       <div class="dropdown-separator"></div>
+      <div class="slider-container">
+        <div class="slider-label">Split Ratio X: <span id="val-split-x">50</span>%</div>
+        <input type="range" id="slider-split-x" min="10" max="90" value="50" class="dropdown-slider">
+        <div class="slider-label">Split Ratio Y: <span id="val-split-y">50</span>%</div>
+        <input type="range" id="slider-split-y" min="10" max="90" value="50" class="dropdown-slider">
+      </div>
+      <div class="dropdown-separator"></div>
       <div class="dropdown-item" id="menu-edit-config">📝 Edit config.toml</div>
       <div class="dropdown-item" id="menu-help">❓ Help</div>
       <div class="dropdown-separator"></div>
