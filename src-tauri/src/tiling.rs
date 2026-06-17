@@ -95,6 +95,7 @@ pub fn calculate_tiles(
 
         TilingMode::ThreeWindows => {
             let ratio_x = config.split_ratio_x as f64 / 100.0;
+            let ratio_y = config.split_ratio_y as f64 / 100.0;
             let avail_w = work_w - config.inner_spacing;
             let left_w = (avail_w as f64 * ratio_x) as i32;
             if window_count <= 1 {
@@ -105,10 +106,10 @@ pub fn calculate_tiles(
                     height: work_h,
                 }]
             } else if window_count == 2 {
-                // 3Win identity: main (left, full-height) + stack top (right, half-height)
+                // 3Win identity: main (left, full-height) + stack top (right, ratio_y of available)
                 let right_w = avail_w - left_w;
                 let avail_h = work_h - config.inner_spacing;
-                let right_h = avail_h / 2;
+                let right_h = (avail_h as f64 * ratio_y) as i32;
                 vec![
                     TileRegion {
                         x: work_x,
@@ -124,10 +125,10 @@ pub fn calculate_tiles(
                     },
                 ]
             } else {
-                // Left main + right stack (top/bottom)
+                // Left main + right stack (top/bottom) using split_ratio_y
                 let right_w = avail_w - left_w;
                 let avail_h = work_h - config.inner_spacing;
-                let right_h = avail_h / 2;
+                let right_h = (avail_h as f64 * ratio_y) as i32;
                 vec![
                     TileRegion {
                         x: work_x,
