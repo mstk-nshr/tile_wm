@@ -3,6 +3,8 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use tauri::Manager;
+use windows::Win32::Foundation::{BOOL, FALSE, HWND, LPARAM, TRUE};
+use windows::Win32::UI::WindowsAndMessaging::*;
 
 use crate::commands;
 use crate::desktop;
@@ -117,4 +119,196 @@ fn snapshot_hwnds() -> Option<HashSet<isize>> {
         .map(|w| w.hwnd)
         .collect();
     Some(hwnds)
+}
+
+/// Monitor foreground window maximize/restore events and adjust tile_wm's
+/// z-order accordingly. When any window is maximized, tile_wm removes its
+/// topmost style and places itself below the maximized window so it stays
+/// hidden. When the maximized window is restored, tile_wm regains topmost.
+pub fn listen_maximize_events(app_handle: tauri::AppHandle) {
+    // Get tile_wm main window HWND
+    let tile_hwnd = match app_handle.get_webview_window("main") {
+        Some(w) => match w.hwnd() {
+            Ok(h) => HWND(h.0),
+            Err(_) => {
+                eprintln!("[tile_wm] listen_maximize_events: failed to get main window HWND");
+                return;
+            }
+        },
+        None => {
+            eprintln!("[tile_wm] listen_maximize_events: main window not found");
+            return;
+        }
+    };
+
+    // Get menu window HWND (optional, for exclusion)
+    let menu_hwnd = app_handle
+        .get_webview_window("menu")
+        .and_then(|w| w.hwnd().ok())
+        .map(|h| HWND(h.0));
+
+    let mut was_lowered = false;
+    // Track the HWND that caused the lowering so we can detect if it's still maximized
+    let mut maximized_hwnd: Option<HWND> = None;
+    let poll_interval = Duration::from_millis(300);
+
+    println!("[tile_wm] listen_maximize_events: started");
+
+    loop {
+        std::thread::sleep(poll_interval);
+
+        unsafe {
+            let foreground = GetForegroundWindow();
+
+            // Skip if invalid (no foreground window / desktop focused)
+            if foreground.is_invalid() {
+                // Desktop has focus: check if any window is still maximized
+                if was_lowered {
+                    if !any_maximized_window_exists(tile_hwnd, menu_hwnd) {
+                        restore_topmost(tile_hwnd, &mut was_lowered, &mut maximized_hwnd);
+                    }
+                }
+                continue;
+            }
+
+            // Skip tile_wm own windows (main window or menu)
+            if foreground == tile_hwnd || menu_hwnd.map_or(false, |m| foreground == m) {
+                continue;
+            }
+
+            let mut placement = WINDOWPLACEMENT::default();
+            placement.length = std::mem::size_of::<WINDOWPLACEMENT>() as u32;
+
+            if GetWindowPlacement(foreground, &mut placement).is_ok() {
+                if placement.showCmd as u32 == SW_SHOWMAXIMIZED.0 as u32 {
+                    // Foreground window is maximized — lower tile_wm
+                    if !was_lowered || maximized_hwnd != Some(foreground) {
+                        was_lowered = true;
+                        maximized_hwnd = Some(foreground);
+                        lower_tile_wm(tile_hwnd, foreground);
+                    }
+                } else if was_lowered {
+                    // Foreground window is no longer maximized, but another
+                    // window might still be — scan all windows before restoring
+                    if !any_maximized_window_exists(tile_hwnd, menu_hwnd) {
+                        restore_topmost(tile_hwnd, &mut was_lowered, &mut maximized_hwnd);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Remove tile_wm's topmost style and place it below the maximized window
+/// in the z-order so the maximized window covers it.
+unsafe fn lower_tile_wm(tile_hwnd: HWND, maximized: HWND) {
+    // Step 1: Remove WS_EX_TOPMOST style so the window behaves as a normal window
+    let _ = SetWindowPos(
+        tile_hwnd,
+        HWND_NOTOPMOST,
+        0,
+        0,
+        0,
+        0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+    );
+    // Step 2: Place tile_wm directly below the maximized window in z-order
+    let _ = SetWindowPos(
+        tile_hwnd,
+        maximized,
+        0,
+        0,
+        0,
+        0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+    );
+    println!("[tile_wm] lowered behind maximized window");
+}
+
+/// Restore tile_wm to topmost position.
+unsafe fn restore_topmost(
+    tile_hwnd: HWND,
+    was_lowered: &mut bool,
+    maximized_hwnd: &mut Option<HWND>,
+) {
+    let _ = SetWindowPos(
+        tile_hwnd,
+        HWND_TOPMOST,
+        0,
+        0,
+        0,
+        0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+    );
+    *was_lowered = false;
+    *maximized_hwnd = None;
+    println!("[tile_wm] restored to topmost");
+}
+
+/// Scan all visible top-level windows to check if any (other than tile_wm's
+/// own windows) are currently maximized.
+unsafe fn any_maximized_window_exists(tile_hwnd: HWND, menu_hwnd: Option<HWND>) -> bool {
+    struct Ctx {
+        found: bool,
+        tile_hwnd: HWND,
+        menu_hwnd: Option<HWND>,
+    }
+
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let ctx = &mut *(lparam.0 as *mut Ctx);
+
+        // Skip tile_wm's own windows
+        if hwnd == ctx.tile_hwnd {
+            return TRUE;
+        }
+        if let Some(menu) = ctx.menu_hwnd {
+            if hwnd == menu {
+                return TRUE;
+            }
+        }
+
+        // Only consider visible windows
+        if !IsWindowVisible(hwnd).as_bool() {
+            return TRUE;
+        }
+
+        // Skip tool windows and cloaked windows (same filtering as get_visible_windows)
+        let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+        if ex_style & (WS_EX_TOOLWINDOW.0 as i32) != 0 {
+            return TRUE;
+        }
+
+        let mut is_cloaked: BOOL = BOOL::default();
+        let _ = windows::Win32::Graphics::Dwm::DwmGetWindowAttribute(
+            hwnd,
+            windows::Win32::Graphics::Dwm::DWMWINDOWATTRIBUTE(14), // DWMWA_CLOAKED
+            &mut is_cloaked as *mut BOOL as *mut std::ffi::c_void,
+            std::mem::size_of::<BOOL>() as u32,
+        );
+        if is_cloaked.as_bool() {
+            return TRUE;
+        }
+
+        // Check if this window is maximized
+        let mut placement = WINDOWPLACEMENT::default();
+        placement.length = std::mem::size_of::<WINDOWPLACEMENT>() as u32;
+
+        if GetWindowPlacement(hwnd, &mut placement).is_ok() {
+            if placement.showCmd as u32 == SW_SHOWMAXIMIZED.0 as u32 {
+                ctx.found = true;
+                return FALSE; // Stop enumerating
+            }
+        }
+
+        TRUE
+    }
+
+    let mut ctx = Ctx {
+        found: false,
+        tile_hwnd,
+        menu_hwnd,
+    };
+
+    let _ = EnumWindows(Some(enum_proc), LPARAM(&mut ctx as *mut Ctx as isize));
+    ctx.found
 }

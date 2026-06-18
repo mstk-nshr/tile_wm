@@ -57,7 +57,6 @@ pub fn run() {
                 config.window_y,
             )?;
 
-
             // Start desktop listener thread
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -74,6 +73,13 @@ pub fn run() {
             // Automatically re-tiles when windows appear/disappear in tiling mode
             let app_handle_we = app.handle().clone();
             win_event::listen_window_events(app_handle_we);
+
+            // Start foreground window maximize monitor
+            // Lowers tile_wm behind maximized windows and restores topmost on restore
+            let app_handle_max = app.handle().clone();
+            std::thread::spawn(move || {
+                win_event::listen_maximize_events(app_handle_max);
+            });
 
             Ok(())
         })
