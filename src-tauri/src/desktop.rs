@@ -433,28 +433,67 @@ fn hicon_to_bmp_base64(hicon: HICON) -> Option<String> {
 }
 
 fn get_process_icon(process_path: &str) -> Option<HICON> {
-    let mut shfi = SHFILEINFOW::default();
     let path_u16: Vec<u16> = process_path.encode_utf16().chain(Some(0)).collect();
-    let res = unsafe {
-        SHGetFileInfoW(
+    unsafe {
+        // まず SHGetImageList で SHIL_EXTRALARGE (48×48) を試みる
+        // SHIL_EXTRALARGE = 2
+        let img_list_result: windows::core::Result<windows::Win32::UI::Controls::IImageList> =
+            windows::Win32::UI::Shell::SHGetImageList(2i32);
+        if let Ok(iml) = img_list_result {
+            let mut shfi = SHFILEINFOW::default();
+            let res = SHGetFileInfoW(
+                PCWSTR(path_u16.as_ptr()),
+                windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES(0),
+                Some(&mut shfi as *mut _ as *mut _),
+                std::mem::size_of::<SHFILEINFOW>() as u32,
+                SHGFI_SYSICONINDEX,
+            );
+            if res != 0 {
+                let icon_idx = shfi.iIcon;
+                if let Ok(hicon) = iml.GetIcon(icon_idx, 0) {
+                    if !hicon.is_invalid() {
+                        return Some(hicon);
+                    }
+                }
+            }
+        }
+
+        // フォールバック: SHGFI_LARGEICON (32×32)
+        let mut shfi = SHFILEINFOW::default();
+        let res = SHGetFileInfoW(
             PCWSTR(path_u16.as_ptr()),
             windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES(0),
             Some(&mut shfi as *mut _ as *mut _),
             std::mem::size_of::<SHFILEINFOW>() as u32,
-            SHGFI_ICON | SHGFI_SMALLICON,
-        )
-    };
-    if res != 0 && !shfi.hIcon.is_invalid() {
-        Some(shfi.hIcon)
-    } else {
+            SHGFI_ICON | SHGFI_LARGEICON,
+        );
+        if res != 0 && !shfi.hIcon.is_invalid() {
+            return Some(shfi.hIcon);
+        }
+
         None
     }
 }
 
 unsafe extern "system" fn enum_child_icon_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let found_icon = &mut *(lparam.0 as *mut Option<HICON>);
-    
+
     let mut result: usize = 0;
+    // まず ICON_BIG (32×32 以上) を試みる
+    let res = SendMessageTimeoutW(
+        hwnd,
+        WM_GETICON,
+        WPARAM(1), // ICON_BIG
+        LPARAM(0),
+        SMTO_ABORTIFHUNG,
+        50,
+        Some(&mut result),
+    );
+    if res.0 != 0 && result != 0 {
+        *found_icon = Some(HICON(result as *mut std::ffi::c_void));
+        return FALSE;
+    }
+
     let res = SendMessageTimeoutW(
         hwnd,
         WM_GETICON,
@@ -483,13 +522,13 @@ unsafe extern "system" fn enum_child_icon_callback(hwnd: HWND, lparam: LPARAM) -
         return FALSE;
     }
 
-    let hicon = GetClassLongPtrW(hwnd, GCLP_HICONSM);
+    let hicon = GetClassLongPtrW(hwnd, GCLP_HICON);
     if hicon != 0 {
         *found_icon = Some(HICON(hicon as *mut std::ffi::c_void));
         return FALSE;
     }
 
-    let hicon = GetClassLongPtrW(hwnd, GCLP_HICON);
+    let hicon = GetClassLongPtrW(hwnd, GCLP_HICONSM);
     if hicon != 0 {
         *found_icon = Some(HICON(hicon as *mut std::ffi::c_void));
         return FALSE;
@@ -501,6 +540,20 @@ unsafe extern "system" fn enum_child_icon_callback(hwnd: HWND, lparam: LPARAM) -
 fn get_window_icon(hwnd: HWND) -> Option<HICON> {
     unsafe {
         let mut result: usize = 0;
+        // まず ICON_BIG (32×32 以上) を試みる
+        let res = SendMessageTimeoutW(
+            hwnd,
+            WM_GETICON,
+            WPARAM(1), // ICON_BIG
+            LPARAM(0),
+            SMTO_ABORTIFHUNG,
+            100,
+            Some(&mut result),
+        );
+        if res.0 != 0 && result != 0 {
+            return Some(HICON(result as *mut std::ffi::c_void));
+        }
+
         let res = SendMessageTimeoutW(
             hwnd,
             WM_GETICON,
@@ -527,12 +580,12 @@ fn get_window_icon(hwnd: HWND) -> Option<HICON> {
             return Some(HICON(result as *mut std::ffi::c_void));
         }
 
-        let hicon = GetClassLongPtrW(hwnd, GCLP_HICONSM);
+        let hicon = GetClassLongPtrW(hwnd, GCLP_HICON);
         if hicon != 0 {
             return Some(HICON(hicon as *mut std::ffi::c_void));
         }
 
-        let hicon = GetClassLongPtrW(hwnd, GCLP_HICON);
+        let hicon = GetClassLongPtrW(hwnd, GCLP_HICONSM);
         if hicon != 0 {
             return Some(HICON(hicon as *mut std::ffi::c_void));
         }
