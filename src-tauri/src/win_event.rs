@@ -163,24 +163,24 @@ pub fn listen_maximize_events(app_handle: tauri::AppHandle) {
             // Skip if invalid (no foreground window / desktop focused)
             if foreground.is_invalid() {
                 // Desktop has focus: check if any window is still maximized
-                if was_lowered {
-                    if !any_maximized_window_exists(tile_hwnd, menu_hwnd) {
-                        restore_topmost(tile_hwnd, &mut was_lowered, &mut maximized_hwnd);
-                    }
+                if was_lowered && !any_maximized_window_exists(tile_hwnd, menu_hwnd) {
+                    restore_topmost(tile_hwnd, &mut was_lowered, &mut maximized_hwnd);
                 }
                 continue;
             }
 
             // Skip tile_wm own windows (main window or menu)
-            if foreground == tile_hwnd || menu_hwnd.map_or(false, |m| foreground == m) {
+            if foreground == tile_hwnd || menu_hwnd == Some(foreground) {
                 continue;
             }
 
-            let mut placement = WINDOWPLACEMENT::default();
-            placement.length = std::mem::size_of::<WINDOWPLACEMENT>() as u32;
+            let mut placement = WINDOWPLACEMENT {
+                length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
+                ..WINDOWPLACEMENT::default()
+            };
 
             if GetWindowPlacement(foreground, &mut placement).is_ok() {
-                if placement.showCmd as u32 == SW_SHOWMAXIMIZED.0 as u32 {
+                if placement.showCmd == SW_SHOWMAXIMIZED.0 as u32 {
                     // Foreground window is maximized — lower tile_wm
                     if !was_lowered || maximized_hwnd != Some(foreground) {
                         was_lowered = true;
@@ -289,15 +289,15 @@ unsafe fn any_maximized_window_exists(tile_hwnd: HWND, menu_hwnd: Option<HWND>) 
             return TRUE;
         }
 
-        // Check if this window is maximized
-        let mut placement = WINDOWPLACEMENT::default();
-        placement.length = std::mem::size_of::<WINDOWPLACEMENT>() as u32;
+        let mut placement = WINDOWPLACEMENT {
+            length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
+            ..WINDOWPLACEMENT::default()
+        };
 
-        if GetWindowPlacement(hwnd, &mut placement).is_ok() {
-            if placement.showCmd as u32 == SW_SHOWMAXIMIZED.0 as u32 {
-                ctx.found = true;
-                return FALSE; // Stop enumerating
-            }
+        if GetWindowPlacement(hwnd, &mut placement).is_ok()
+            && placement.showCmd == SW_SHOWMAXIMIZED.0 as u32 {
+            ctx.found = true;
+            return FALSE; // Stop enumerating
         }
 
         TRUE

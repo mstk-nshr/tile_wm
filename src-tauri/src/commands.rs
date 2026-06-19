@@ -548,7 +548,6 @@ pub async fn show_menu_window(app: tauri::AppHandle) -> Result<(), String> {
             if !*state.menu_shown.lock().unwrap() {
                 return;
             }
-            drop(state);
 
             // Check the foreground window
             let fg_hwnd: isize = unsafe { GetForegroundWindow().0 as isize };
