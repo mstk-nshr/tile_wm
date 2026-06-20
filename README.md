@@ -48,10 +48,10 @@ Automatically arranges windows on the active virtual desktop according to the se
 
 | Mode | Icon | Layout |
 |------|------|--------|
-| **Free** | <img src=\"public/icons/free.png\" width=\"20\" /> | No tiling (free placement) |
-| **2Win** | <img src=\"public/icons/2Win.png\" width=\"20\" /> | Left/right split (left main + right) ↔ (right main + left) |
-| **3Win** | <img src=\"public/icons/3Win.png\" width=\"20\" /> | Left main + right upper + right lower ↕ Right main + left upper + left lower |
-| **4Win** | <img src=\"public/icons/4Win.png\" width=\"20\" /> | 2×2 grid (main area position can be switched) |
+| **Free** | ![free](public/icons/free.png) | No tiling (free placement) |
+| **2Win** | ![2Win](public/icons/2Win.png) | Left/right split (left main + right) ↔ (right main + left) |
+| **3Win** | ![3Win](public/icons/3Win.png) | Left main + right upper + right lower ↕ Right main + left upper + left lower |
+| **4Win** | ![4Win](public/icons/4Win.png) | 2×2 grid (main area position can be switched) |
 
 - Sub-windows are automatically arranged relative to the main window
 - Automatically detects window increases/decreases and re-applies tiling (with debounce processing)
