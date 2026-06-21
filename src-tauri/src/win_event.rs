@@ -148,7 +148,7 @@ pub fn listen_maximize_events(app_handle: tauri::AppHandle) {
         .map(|h| HWND(h.0));
 
     let mut was_lowered = false;
-    // Track the HWND that caused the lowering so we can detect if it's still maximized
+    // Track the HWND that caused the lowering so we can detect if it's still maximized/fullscreen
     let mut maximized_hwnd: Option<HWND> = None;
     let poll_interval = Duration::from_millis(300);
 
@@ -162,7 +162,7 @@ pub fn listen_maximize_events(app_handle: tauri::AppHandle) {
 
             // Skip if invalid (no foreground window / desktop focused)
             if foreground.is_invalid() {
-                // Desktop has focus: check if any window is still maximized
+                // Desktop has focus: check if any window is still maximized/fullscreen
                 if was_lowered && !any_maximized_window_exists(tile_hwnd, menu_hwnd) {
                     restore_topmost(tile_hwnd, &mut was_lowered, &mut maximized_hwnd);
                 }
@@ -179,23 +179,57 @@ pub fn listen_maximize_events(app_handle: tauri::AppHandle) {
                 ..WINDOWPLACEMENT::default()
             };
 
-            if GetWindowPlacement(foreground, &mut placement).is_ok() {
-                if placement.showCmd == SW_SHOWMAXIMIZED.0 as u32 {
-                    // Foreground window is maximized — lower tile_wm
-                    if !was_lowered || maximized_hwnd != Some(foreground) {
-                        was_lowered = true;
-                        maximized_hwnd = Some(foreground);
-                        lower_tile_wm(tile_hwnd, foreground);
-                    }
-                } else if was_lowered {
-                    // Foreground window is no longer maximized, but another
-                    // window might still be — scan all windows before restoring
-                    if !any_maximized_window_exists(tile_hwnd, menu_hwnd) {
-                        restore_topmost(tile_hwnd, &mut was_lowered, &mut maximized_hwnd);
-                    }
+            let is_max_or_fs = if GetWindowPlacement(foreground, &mut placement).is_ok() {
+                placement.showCmd == SW_SHOWMAXIMIZED.0 as u32 || is_window_fullscreen(foreground)
+            } else {
+                is_window_fullscreen(foreground)
+            };
+
+            if is_max_or_fs {
+                // Foreground window is maximized or fullscreen — lower tile_wm
+                if !was_lowered || maximized_hwnd != Some(foreground) {
+                    was_lowered = true;
+                    maximized_hwnd = Some(foreground);
+                    lower_tile_wm(tile_hwnd, foreground);
+                }
+            } else if was_lowered {
+                // Foreground window is no longer maximized/fullscreen, but another
+                // window might still be — scan all windows before restoring
+                if !any_maximized_window_exists(tile_hwnd, menu_hwnd) {
+                    restore_topmost(tile_hwnd, &mut was_lowered, &mut maximized_hwnd);
                 }
             }
         }
+    }
+}
+
+/// Helper function to check if a window is fullscreen (occupies the entire monitor).
+unsafe fn is_window_fullscreen(hwnd: HWND) -> bool {
+    let mut rect = windows::Win32::Foundation::RECT::default();
+    if GetWindowRect(hwnd, &mut rect).is_err() {
+        return false;
+    }
+
+    let monitor = windows::Win32::Graphics::Gdi::MonitorFromWindow(
+        hwnd,
+        windows::Win32::Graphics::Gdi::MONITOR_DEFAULTTONEAREST,
+    );
+    if monitor.is_invalid() {
+        return false;
+    }
+
+    let mut monitor_info = windows::Win32::Graphics::Gdi::MONITORINFO {
+        cbSize: std::mem::size_of::<windows::Win32::Graphics::Gdi::MONITORINFO>() as u32,
+        ..Default::default()
+    };
+
+    if windows::Win32::Graphics::Gdi::GetMonitorInfoW(monitor, &mut monitor_info).as_bool() {
+        rect.left <= monitor_info.rcMonitor.left
+            && rect.top <= monitor_info.rcMonitor.top
+            && rect.right >= monitor_info.rcMonitor.right
+            && rect.bottom >= monitor_info.rcMonitor.bottom
+    } else {
+        false
     }
 }
 
@@ -246,7 +280,7 @@ unsafe fn restore_topmost(
 }
 
 /// Scan all visible top-level windows to check if any (other than tile_wm's
-/// own windows) are currently maximized.
+/// own windows) are currently maximized or fullscreen.
 unsafe fn any_maximized_window_exists(tile_hwnd: HWND, menu_hwnd: Option<HWND>) -> bool {
     struct Ctx {
         found: bool,
@@ -294,8 +328,13 @@ unsafe fn any_maximized_window_exists(tile_hwnd: HWND, menu_hwnd: Option<HWND>) 
             ..WINDOWPLACEMENT::default()
         };
 
-        if GetWindowPlacement(hwnd, &mut placement).is_ok()
-            && placement.showCmd == SW_SHOWMAXIMIZED.0 as u32 {
+        let is_max_or_fs = if GetWindowPlacement(hwnd, &mut placement).is_ok() {
+            placement.showCmd == SW_SHOWMAXIMIZED.0 as u32 || is_window_fullscreen(hwnd)
+        } else {
+            is_window_fullscreen(hwnd)
+        };
+
+        if is_max_or_fs {
             ctx.found = true;
             return FALSE; // Stop enumerating
         }
