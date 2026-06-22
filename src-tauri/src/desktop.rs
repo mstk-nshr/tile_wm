@@ -908,7 +908,7 @@ pub fn get_all_desktops_apps(
                 let desktop_num = (desktop_idx + 1) as i32;
 
                 let apps = map.entry(desktop_num).or_default();
-                if !apps.iter().any(|app| app.process_name == process_name) {
+                if !apps.iter().any(|app| app.hwnd == hwnd.0 as isize) {
                     // 1. UWP公式PNGアイコンの取得を最優先で試みる
                     //    UWP ロゴは余白多めの PNG なので、フラグで JS 側に区別を伝える
                     let (uwp_b64_opt, is_uwp) = match get_uwp_icon_base64(hwnd) {

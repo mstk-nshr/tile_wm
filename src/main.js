@@ -511,23 +511,23 @@ async function updateDesktopIcons() {
       if (!desktopAppOrders[numStr]) {
         desktopAppOrders[numStr] = [];
       }
-      const currentProcessNames = apps.map((app) => app.process_name);
+      const currentHwnds = apps.map((app) => app.hwnd);
 
       // Remove apps that are no longer present on this desktop
-      desktopAppOrders[numStr] = desktopAppOrders[numStr].filter((pName) =>
-        currentProcessNames.includes(pName)
+      desktopAppOrders[numStr] = desktopAppOrders[numStr].filter((hwnd) =>
+        currentHwnds.includes(hwnd)
       );
 
       // Append newly discovered apps to the end
-      currentProcessNames.forEach((pName) => {
-        if (!desktopAppOrders[numStr].includes(pName)) {
-          desktopAppOrders[numStr].push(pName);
+      currentHwnds.forEach((hwnd) => {
+        if (!desktopAppOrders[numStr].includes(hwnd)) {
+          desktopAppOrders[numStr].push(hwnd);
         }
       });
 
       // Sort the apps based on the stable order
       apps.sort((a, b) => {
-        return desktopAppOrders[numStr].indexOf(a.process_name) - desktopAppOrders[numStr].indexOf(b.process_name);
+        return desktopAppOrders[numStr].indexOf(a.hwnd) - desktopAppOrders[numStr].indexOf(b.hwnd);
       });
     }
 
