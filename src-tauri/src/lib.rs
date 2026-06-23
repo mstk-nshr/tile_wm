@@ -17,6 +17,7 @@ pub struct AppState {
     pub tiling_cycles: Mutex<HashMap<i32, i32>>,
     pub float_window_pos: Mutex<(i32, i32)>,
     pub desktop_thumbnails: Mutex<HashMap<i32, desktop::ThumbnailData>>,
+    pub snap_states: Mutex<HashMap<isize, hotkey::SnapState>>,
     /// Set to true while the menu is intentionally shown.
     pub menu_shown: Mutex<bool>,
     /// Incremented each time show_menu_window is called.
@@ -43,6 +44,7 @@ pub fn run() {
             tiling_cycles: Mutex::new(HashMap::new()),
             float_window_pos: Mutex::new(float_pos),
             desktop_thumbnails: Mutex::new(HashMap::new()),
+            snap_states: Mutex::new(HashMap::new()),
             menu_shown: Mutex::new(false),
             menu_generation: Mutex::new(0),
         })
