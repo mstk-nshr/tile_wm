@@ -132,6 +132,19 @@ async function init() {
     }
   });
 
+  // Middle-click (mouse wheel button) on menu button → quit the app
+  menuBtn.addEventListener("auxclick", async (e) => {
+    if (e.button === 1) {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        await invoke("quit_app");
+      } catch (err) {
+        console.error("quit_app on auxclick failed:", err);
+      }
+    }
+  });
+
   // Float window drag
   setupFloatWindowDrag();
 
@@ -181,7 +194,7 @@ function setupThumbnailHover() {
     try {
       const thumb = await invoke("get_desktop_thumbnail", { number: num });
       const canvasEl = btn.querySelector(".desktop-thumbnail-canvas");
-      
+
       if (!thumb || !canvasEl || currentHoveredBtn !== btn) {
         if (canvasEl) canvasEl.classList.add("hidden");
         return;
@@ -392,7 +405,7 @@ function createDesktopButtons(desktopList) {
     const btn = document.createElement("div");
     btn.className = "desktop-btn";
     btn.dataset.desktop = num;
-    
+
     const label = document.createElement("span");
     label.className = "desktop-num-label";
     label.textContent = num;
@@ -415,7 +428,7 @@ function createDesktopButtons(desktopList) {
     const fbtn = document.createElement("div");
     fbtn.className = "float-desktop-btn";
     fbtn.dataset.desktop = num;
-    
+
     const flabel = document.createElement("span");
     flabel.className = "desktop-num-label";
     flabel.textContent = num;
@@ -558,8 +571,8 @@ async function updateDesktopIcons() {
           if (app.icon_base64) {
             const btn = document.createElement("div");
             btn.className = "desktop-app-btn";
-            btn.title = app.process_name.toLowerCase().endsWith(".exe") 
-              ? app.process_name.slice(0, -4) 
+            btn.title = app.process_name.toLowerCase().endsWith(".exe")
+              ? app.process_name.slice(0, -4)
               : app.process_name;
             btn.draggable = true;
             btn.addEventListener("dragstart", (e) => {
