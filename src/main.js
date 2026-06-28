@@ -297,7 +297,7 @@ function tilingIconName(mode) {
     case "2windows": return "/icons/2Win" + suffix;
     case "3windows": return "/icons/3Win" + suffix;
     case "4windows": return "/icons/4Win" + suffix;
-    default: return "/icons/free.png";
+    default: return "/icons/float.png";
   }
 }
 

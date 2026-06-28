@@ -48,7 +48,7 @@ Automatically arranges windows on the active virtual desktop according to the se
 
 | Mode | Icon | Layout |
 |------|------|--------|
-| **Free** | ![free](public/icons/free.png) | No tiling (free placement) |
+| **Float** | ![float](public/icons/float.png) | No tiling (free placement) |
 | **2Win** | ![2Win](public/icons/2Win.png) | Left/right split (left main + right) ↔ (right main + left) |
 | **3Win** | ![3Win](public/icons/3Win.png) | Left main + right upper + right lower ↕ Right main + left upper + left lower |
 | **4Win** | ![4Win](public/icons/4Win.png) | 2×2 grid (main area position can be switched) |
@@ -64,7 +64,7 @@ Automatically arranges windows on the active virtual desktop according to the se
 
 ### 📌 Float Mode
 
-- In Free mode, dragging the taskbar menu button (⋮) moves the taskbar to any position on the screen
+- In Float mode, dragging the taskbar menu button (⋮) moves the taskbar to any position on the screen
 - Float position is automatically saved to the configuration file and restored on next startup
 - While floating, the window list and desktop switching functions remain available
 
@@ -212,7 +212,7 @@ tile_wm/
 ├── sample_taskbar.png          # Screenshot
 ├── public/
 │   └── icons/                  # Tiling mode icons
-│       ├── free.png
+│       ├── float.png
 │       ├── 2Win.png / 2Win-R.png
 │       ├── 3Win.png / 3Win-R.png
 │       └── 4Win.png / 4Win-R.png

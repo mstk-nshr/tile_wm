@@ -60,7 +60,7 @@ fn run_poll_loop() {
             .unwrap_or(tiling::TilingMode::Free);
 
         if mode == tiling::TilingMode::Free {
-            // In Free mode, just keep the snapshot up to date
+            // In Float mode, just keep the snapshot up to date
             if let Some(current) = snapshot_hwnds() {
                 known_hwnds = current;
             }
