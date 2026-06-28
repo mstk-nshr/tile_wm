@@ -37,6 +37,7 @@ const HC_ACTION: i32 = 0;
 /// ショートカット:
 ///   Ctrl+Alt+Win+F11 → フォアグラウンドウィンドウを左のデスクトップに移動
 ///   Ctrl+Alt+Win+F12 → フォアグラウンドウィンドウを右のデスクトップに移動
+///   Ctrl+Alt+Win+F  → アクティブウィンドウを空きスペースにフィット
 ///
 /// 移動後、移動先のデスクトップに切り替え、移動したウィンドウにフォーカスを戻す。
 pub fn install_hotkey_hook(app_handle: tauri::AppHandle) {
@@ -406,8 +407,9 @@ unsafe extern "system" fn hook_callback(
     let target_vk = kb.vk_code as u16;
     let is_arrow = target_vk == VK_LEFT.0 || target_vk == VK_RIGHT.0 || target_vk == VK_UP.0 || target_vk == VK_DOWN.0;
     let is_f_key = target_vk == VK_F12.0 || target_vk == VK_F11.0;
+    let is_fit_key = target_vk == 0x46; // VK_F ('F' key)
 
-    if !is_arrow && !is_f_key {
+    if !is_arrow && !is_f_key && !is_fit_key {
         return CallNextHookEx(HHOOK::default(), code, wparam, lparam);
     }
 
@@ -422,6 +424,10 @@ unsafe extern "system" fn hook_callback(
         if !(win && !ctrl && !alt && !shift) {
             return CallNextHookEx(HHOOK::default(), code, wparam, lparam);
         }
+    } else if is_fit_key {
+        if !(ctrl && alt && win) {
+            return CallNextHookEx(HHOOK::default(), code, wparam, lparam);
+        }
     } else {
         if !(ctrl && alt && win) {
             return CallNextHookEx(HHOOK::default(), code, wparam, lparam);
@@ -434,6 +440,17 @@ unsafe extern "system" fn hook_callback(
         std::thread::spawn(move || {
             let hwnd = HWND(target_hwnd_raw as *mut std::ffi::c_void);
             fire_snap(target_vk, hwnd);
+        });
+        return LRESULT(1); // ブロック！
+    }
+
+    if is_fit_key {
+        let target_hwnd = GetForegroundWindow();
+        let target_hwnd_raw = target_hwnd.0 as isize;
+        println!("[tile_wm] HOOK BLOCKED: Ctrl+Win+Alt+F (fit) hwnd=0x{:X}", target_hwnd_raw);
+        std::thread::spawn(move || {
+            let hwnd = HWND(target_hwnd_raw as *mut std::ffi::c_void);
+            fire_fit(hwnd);
         });
         return LRESULT(1); // ブロック！
     }
@@ -460,6 +477,162 @@ unsafe extern "system" fn hook_callback(
     });
 
     LRESULT(1) // ブロック！
+}
+
+// ─── Fit to Empty Space ───────────────────────────────────────────────────
+
+/// fit-error イベントを UI に emit するヘルパー
+fn emit_fit_error(msg: &str) {
+    if let Some(handle_mutex) = APP_HANDLE.get() {
+        if let Ok(handle) = handle_mutex.lock() {
+            let _ = tauri::Emitter::emit(&*handle, "fit-error", msg);
+        }
+    }
+}
+
+/// アクティブウィンドウを、その中心座標が含まれる空きスペースにフィットさせる。
+///
+/// アルゴリズム：
+///   1. モニターの rcWork + outer spacing から有効作業領域を計算
+///   2. 自分以外の可視ウィンドウを列挙
+///   3. アクティブウィンドウの中心 (cx, cy) を投影軸として空きスロット境界を決定
+///      - 水平: cy を含むウィンドウの右端/左端 + inner_spacing でスロット左/右を制約
+///      - 垂直: cx を含むウィンドウの下端/上端 + inner_spacing でスロット上/下を制約
+///   4. 空きスロットに SetWindowPos で移動・リサイズ
+fn fire_fit(hwnd: HWND) {
+    // 1. config から spacing を取得
+    let (top_sp, bottom_sp, left_sp, right_sp, inner_sp) = {
+        if let Some(handle_mutex) = APP_HANDLE.get() {
+            if let Ok(handle) = handle_mutex.lock() {
+                let state = handle.state::<crate::AppState>();
+                let config = state.config.lock().unwrap();
+                (
+                    config.top_spacing,
+                    config.bottom_spacing,
+                    config.left_spacing,
+                    config.right_spacing,
+                    config.inner_spacing,
+                )
+            } else {
+                (40, 10, 10, 10, 10)
+            }
+        } else {
+            (40, 10, 10, 10, 10)
+        }
+    };
+
+    // 2. モニター rcWork を取得
+    let monitor_info = unsafe {
+        match get_monitor_info(hwnd) {
+            Some(info) => info,
+            None => {
+                emit_fit_error("モニター情報の取得に失敗しました");
+                return;
+            }
+        }
+    };
+    let rc = monitor_info.rcWork;
+    let work_x = rc.left + left_sp;
+    let work_y = rc.top + top_sp;
+    let work_right = rc.right - right_sp;
+    let work_bottom = rc.bottom - bottom_sp;
+
+    if work_right <= work_x || work_bottom <= work_y {
+        emit_fit_error("有効な作業領域がありません");
+        return;
+    }
+
+    // 3. アクティブウィンドウの中心座標を取得
+    let mut active_rect = RECT::default();
+    unsafe { let _ = GetWindowRect(hwnd, &mut active_rect); }
+    let cx = (active_rect.left + active_rect.right) / 2;
+    let cy = (active_rect.top + active_rect.bottom) / 2;
+    let hwnd_raw = hwnd.0 as isize;
+
+    // 4. 自分以外の可視ウィンドウを取得してスロット境界を計算
+    let other_windows = crate::desktop::get_visible_windows();
+
+    let mut slot_left = work_x;
+    let mut slot_right = work_right;
+    let mut slot_top = work_y;
+    let mut slot_bottom = work_bottom;
+
+    for w in &other_windows {
+        // 自分自身・最小化・cloaked・最前面固定ウィンドウを除外
+        if w.hwnd == hwnd_raw || w.is_minimized || w.is_cloaked || w.is_topmost {
+            continue;
+        }
+
+        let (wl, wt, wr, wb) = w.rect;
+
+        // 水平制約: このウィンドウが cy を垂直方向に含む場合
+        if wt < cy && cy < wb {
+            // ウィンドウが中心の左側にある → スロット左境界を右に押す
+            if wr <= cx {
+                let candidate = wr + inner_sp;
+                if candidate > slot_left {
+                    slot_left = candidate;
+                }
+            }
+            // ウィンドウが中心の右側にある → スロット右境界を左に押す
+            if wl >= cx {
+                let candidate = wl - inner_sp;
+                if candidate < slot_right {
+                    slot_right = candidate;
+                }
+            }
+        }
+
+        // 垂直制約: このウィンドウが cx を水平方向に含む場合
+        if wl < cx && cx < wr {
+            // ウィンドウが中心の上側にある → スロット上境界を下に押す
+            if wb <= cy {
+                let candidate = wb + inner_sp;
+                if candidate > slot_top {
+                    slot_top = candidate;
+                }
+            }
+            // ウィンドウが中心の下側にある → スロット下境界を上に押す
+            if wt >= cy {
+                let candidate = wt - inner_sp;
+                if candidate < slot_bottom {
+                    slot_bottom = candidate;
+                }
+            }
+        }
+    }
+
+    // 5. スロットが有効か確認（最低 100x100 px）
+    let slot_w = slot_right - slot_left;
+    let slot_h = slot_bottom - slot_top;
+    if slot_w < 100 || slot_h < 100 {
+        emit_fit_error("空きスペースが見つかりません");
+        return;
+    }
+
+    println!(
+        "[tile_wm] fit: center=({}, {}), slot=({}, {}, {}, {})",
+        cx, cy, slot_left, slot_top, slot_right, slot_bottom
+    );
+
+    // 6. ウィンドウをスロットに配置
+    unsafe {
+        if IsIconic(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+        }
+        if IsZoomed(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+        }
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOP,
+            slot_left,
+            slot_top,
+            slot_w,
+            slot_h,
+            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        );
+    }
 }
 
 // ─── ウィンドウ移動 + デスクトップ切替 + フォーカス復帰 ─────────────────────

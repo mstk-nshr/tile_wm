@@ -159,6 +159,15 @@ async function init() {
     console.error("Event listen failed:", e);
   }
 
+  // Listen for fit-error events from Rust (Ctrl+Win+Alt+F)
+  try {
+    await listen("fit-error", (event) => {
+      showSystemMessage(event.payload);
+    });
+  } catch (e) {
+    console.error("fit-error listen failed:", e);
+  }
+
   updateDesktopIcons();
   setInterval(updateDesktopIcons, 2000);
 
@@ -783,6 +792,70 @@ async function setupTaskbarMoveListener() {
 }
 
 // ─── Start ────────────────────────────────────────────────────────────────
+
+// Inject CSS for system messages (screen bottom-right toast)
+(function injectSystemMessageStyles() {
+  const style = document.createElement("style");
+  style.textContent = `
+    .sys-msg {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 99999;
+      padding: 8px 14px;
+      border-radius: 6px;
+      background: rgba(30, 30, 30, 0.92);
+      color: #f87171;
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      border: 1px solid rgba(248,113,113,0.4);
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .sys-msg.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
+/// 画面右下にシステムメッセージ（トースト）を表示する。
+/// 3秒後にフェードアウトして自動消去。
+function showSystemMessage(msg) {
+  // 既存のメッセージがあれば即消去
+  document.querySelectorAll(".sys-msg").forEach(el => el.remove());
+
+  const el = document.createElement("div");
+  el.className = "sys-msg";
+  el.textContent = msg;
+  document.body.appendChild(el);
+
+  // フェードイン
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => el.classList.add("visible"));
+  });
+
+  // 3秒後にフェードアウト → 削除
+  const timer = setTimeout(() => {
+    el.classList.remove("visible");
+    el.addEventListener("transitionend", () => el.remove(), { once: true });
+  }, 3000);
+
+  // クリックで即消去
+  el.style.pointerEvents = "auto";
+  el.addEventListener("click", () => {
+    clearTimeout(timer);
+    el.classList.remove("visible");
+    el.addEventListener("transitionend", () => el.remove(), { once: true });
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   init();
   setupTaskbarMoveListener();
