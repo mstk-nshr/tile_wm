@@ -1,5 +1,9 @@
-/src-tauri/target/
 /dist/
 /node_modules/
 .scratch/
 graphify-out/
+
+# Tauri & Rust
+/src-tauri/target/
+/src-tauri/sample-src/
+/src-tauri/graphify-out/
