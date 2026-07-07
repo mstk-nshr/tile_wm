@@ -26,8 +26,60 @@ pub struct AppState {
     pub menu_generation: Mutex<u64>,
 }
 
+use windows::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS, WAIT_OBJECT_0, WAIT_ABANDONED};
+use windows::Win32::System::Threading::{CreateMutexW, CreateEventW, SetEvent, ResetEvent, WaitForSingleObject, INFINITE};
+use windows::core::w;
+
+struct SendHandle(isize);
+unsafe impl Send for SendHandle {}
+
+unsafe fn handle_single_instance() -> Result<(), windows::core::Error> {
+    // Create or open a named event to signal termination
+    let terminate_event = CreateEventW(None, true, false, w!("Local\\tile_wm_terminate_event"))?;
+
+    // Create a named mutex to detect running instances
+    let mutex = CreateMutexW(None, false, w!("Local\\tile_wm_singleton_mutex"))?;
+
+    if GetLastError() == ERROR_ALREADY_EXISTS {
+        println!("[tile_wm] Another instance of tile_wm is already running. Signaling it to exit...");
+        SetEvent(terminate_event)?;
+
+        // Wait up to 5 seconds for the other instance to exit and release the mutex
+        let wait_res = WaitForSingleObject(mutex, 5000);
+        if wait_res == WAIT_OBJECT_0 || wait_res == WAIT_ABANDONED {
+            println!("[tile_wm] Successfully acquired singleton mutex. Old instance exited.");
+        } else {
+            println!("[tile_wm] Warning: Wait timed out or failed ({:?}). Continuing anyway.", wait_res);
+        }
+
+        // Reset the event so we don't immediately terminate ourselves when we listen
+        ResetEvent(terminate_event)?;
+    }
+
+    let terminate_event_send = SendHandle(terminate_event.0 as isize);
+    // Spawn a listener thread to exit when the terminate event is signaled by a new instance
+    std::thread::spawn(move || {
+        unsafe {
+            let handle = windows::Win32::Foundation::HANDLE(terminate_event_send.0 as *mut std::ffi::c_void);
+            let wait_res = WaitForSingleObject(handle, INFINITE);
+            if wait_res == WAIT_OBJECT_0 {
+                println!("[tile_wm] Another instance started. Exiting...");
+                std::process::exit(0);
+            }
+        }
+    });
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    unsafe {
+        if let Err(e) = handle_single_instance() {
+            eprintln!("[tile_wm] Error initializing single instance: {:?}", e);
+        }
+    }
+
     let config = config::load_config();
     let float_pos = (config.window_x, config.window_y);
 
