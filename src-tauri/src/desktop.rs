@@ -475,6 +475,18 @@ fn get_process_icon(process_path: &str) -> Option<HICON> {
     }
 }
 
+pub fn get_app_icon_base64(path: &str) -> Option<String> {
+    if let Some(hicon) = get_process_icon(path) {
+        let b64 = hicon_to_bmp_base64(hicon);
+        unsafe {
+            let _ = DestroyIcon(hicon);
+        }
+        b64
+    } else {
+        None
+    }
+}
+
 unsafe extern "system" fn enum_child_icon_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let found_icon = &mut *(lparam.0 as *mut Option<HICON>);
 

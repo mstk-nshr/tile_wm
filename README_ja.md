@@ -170,32 +170,41 @@ npm run tauri build
 | `bottom_spacing` | 整数 | `10` | 画面下部の余白 |
 | `left_spacing` | 整数 | `10` | 画面左端の余白 |
 | `right_spacing` | 整数 | `10` | 画面右端の余白 |
-| `inner_spacing` | 整数 | `10` | タイリング時のウィンドウ間の余白 |
+| `inner_spacing` | 整数 | `10` | ウィンドウ間の間隔（ピクセル） |
+| `apps` | オブジェクト配列 | `[]` | タスクバーに表示するアプリ起動ボタンのリスト（`path`, `args`） |
 
 > **補足**: 設定ファイル内のキー名はスネークケース（`snake_case`）で記述してください。
 
 ### 設定例
 
 ```toml
-bar_height = 36
-split_ratio_x = 60
+bar_height = 40
+split_ratio_x = 55
 split_ratio_y = 50
-exclude_titles = ["Calculator", "Settings"]
-exclude_processes = ["tile_wm.exe"]
-window_x = 200
-window_y = 50
-window_bg_rgba = [48, 48, 48, 255]
-button_fg_rgb = [180, 180, 180]
-button_bg_rgb = [48, 48, 48]
+exclude_titles = ["のプロパティ", "文字コード表"]
+exclude_processes = ["AutoHotkeyUX.exe"]
+window_x = 100
+window_y = 0
+window_bg_rgba = [32, 32, 32, 255]
+button_fg_rgb = [136, 136, 136]
+button_bg_rgb = [32, 32, 32]
 button_highlight_fg_rgb = [255, 255, 255]
-button_highlight_bg_rgb = [64, 120, 242]
+button_highlight_bg_rgb = [59, 130, 246]
 flip_main = false
 min_window_height = 220
 top_spacing = 40
 bottom_spacing = 10
 left_spacing = 10
 right_spacing = 10
-inner_spacing = 6
+inner_spacing = 10
+
+[[apps]]
+path = "C:\\Windows\\System32\\cmd.exe"
+args = []
+
+[[apps]]
+path = "notepad.exe"
+args = []
 ```
 
 ---

@@ -35,6 +35,7 @@ pub struct ConfigResponse {
     pub left_spacing: i32,
     pub right_spacing: i32,
     pub inner_spacing: i32,
+    pub apps: Vec<config::AppConfig>,
 }
 
 #[tauri::command]
@@ -60,6 +61,7 @@ pub fn get_config(state: State<AppState>) -> ConfigResponse {
         left_spacing: config.left_spacing,
         right_spacing: config.right_spacing,
         inner_spacing: config.inner_spacing,
+        apps: config.apps.clone(),
     }
 }
 
@@ -88,6 +90,7 @@ pub fn update_config(state: State<AppState>, app: tauri::AppHandle, new_config: 
         config.left_spacing = new_config.left_spacing;
         config.right_spacing = new_config.right_spacing;
         config.inner_spacing = new_config.inner_spacing;
+        config.apps = new_config.apps;
         config::save_config(&config);
     }
 
@@ -597,6 +600,20 @@ pub fn hide_menu_window(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
+}
+
+#[tauri::command]
+pub fn launch_app(path: String, args: Vec<String>) -> Result<(), String> {
+    std::process::Command::new(&path)
+        .args(&args)
+        .spawn()
+        .map_err(|e| format!("Failed to launch app '{path}': {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_app_icon(path: String) -> Option<String> {
+    desktop::get_app_icon_base64(&path)
 }
 
 /// Resize the main window to exactly fit the rendered taskbar content width.

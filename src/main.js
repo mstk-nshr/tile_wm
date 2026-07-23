@@ -286,9 +286,75 @@ async function loadConfig() {
       taskbar.style.setProperty('--button-highlight-bg-rgb', config.button_highlight_bg_rgb.join(', '));
     }
     updateTilingIcons();
+    await renderAppsSection();
   } catch (e) {
     console.error("Failed to load config:", e);
   }
+}
+
+async function renderAppsSection() {
+  const appsSection = document.getElementById("apps-section");
+  if (!appsSection) return;
+  appsSection.innerHTML = "";
+
+  const apps = config?.apps || [];
+  if (apps.length === 0) {
+    const prevSep = appsSection.previousElementSibling;
+    if (prevSep && prevSep.classList.contains("separator")) {
+      prevSep.style.display = "none";
+    }
+    appsSection.style.display = "none";
+    return;
+  }
+
+  const prevSep = appsSection.previousElementSibling;
+  if (prevSep && prevSep.classList.contains("separator")) {
+    prevSep.style.display = "";
+  }
+  appsSection.style.display = "flex";
+
+  for (const app of apps) {
+    const btn = document.createElement("button");
+    btn.className = "app-btn";
+    
+    // Extract display title from exe filename or path
+    const fileName = app.path.split(/[/\\]/).pop() || app.path;
+    const title = fileName.replace(/\.exe$/i, "");
+    btn.title = `${title}${app.args && app.args.length > 0 ? " " + app.args.join(" ") : ""}`;
+
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "icon";
+
+    btn.appendChild(iconSpan);
+
+    btn.addEventListener("click", async () => {
+      try {
+        await invoke("launch_app", { path: app.path, args: app.args || [] });
+      } catch (err) {
+        console.error("launch_app failed:", err);
+      }
+    });
+
+    appsSection.appendChild(btn);
+
+    // Fetch app icon asynchronously
+    try {
+      const iconB64 = await invoke("get_app_icon", { path: app.path });
+      if (iconB64) {
+        const img = document.createElement("img");
+        img.src = iconB64;
+        img.alt = title;
+        iconSpan.appendChild(img);
+      } else {
+        // Fallback: initial letter
+        iconSpan.textContent = title.charAt(0).toUpperCase() || "A";
+      }
+    } catch (e) {
+      iconSpan.textContent = title.charAt(0).toUpperCase() || "A";
+    }
+  }
+
+  requestAnimationFrame(() => fitWindowToContent(true));
 }
 
 function tilingIconName(mode) {

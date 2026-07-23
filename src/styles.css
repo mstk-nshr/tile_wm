@@ -177,6 +177,45 @@ img {
   color: rgb(var(--button-highlight-fg-rgb, 204, 204, 204));
 }
 
+/* ─── Apps Section ─── */
+#apps-section {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.app-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--btn-size, 28px);
+  height: var(--btn-size, 28px);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgb(var(--button-fg-rgb, 136, 136, 136));
+  background: rgb(var(--button-bg-rgb, 32, 32, 32));
+  transition: all 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.app-btn:hover {
+  background: rgb(var(--button-highlight-bg-rgb, 255, 255, 255));
+  color: rgb(var(--button-highlight-fg-rgb, 204, 204, 204));
+}
+
+.app-btn .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-btn .icon img {
+  width: var(--icon-size, 18px);
+  height: var(--icon-size, 18px);
+  object-fit: contain;
+}
+
 /* ─── Dropdown Menu ─── */
 .dropdown {
   position: fixed;

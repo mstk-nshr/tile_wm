@@ -2,6 +2,13 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AppConfig {
+    pub path: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -24,6 +31,7 @@ pub struct Config {
     pub left_spacing: i32,
     pub right_spacing: i32,
     pub inner_spacing: i32,
+    pub apps: Vec<AppConfig>,
 }
 
 impl Config {
@@ -61,6 +69,7 @@ impl Default for Config {
             left_spacing: 10,
             right_spacing: 10,
             inner_spacing: 10,
+            apps: vec![],
         }
     }
 }

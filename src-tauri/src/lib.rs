@@ -165,6 +165,8 @@ pub fn run() {
             commands::toggle_flip_main,
             commands::capture_current_desktop,
             commands::get_desktop_thumbnail,
+            commands::launch_app,
+            commands::get_app_icon,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
