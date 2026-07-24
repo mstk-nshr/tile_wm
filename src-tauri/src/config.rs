@@ -7,6 +7,8 @@ pub struct AppConfig {
     pub path: String,
     #[serde(default)]
     pub args: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

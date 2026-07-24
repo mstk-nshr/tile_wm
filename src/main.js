@@ -329,7 +329,11 @@ async function renderAppsSection() {
 
     btn.addEventListener("click", async () => {
       try {
-        await invoke("launch_app", { path: app.path, args: app.args || [] });
+        await invoke("launch_app", {
+          path: app.path,
+          args: app.args || [],
+          workDir: app.work_dir || null,
+        });
       } catch (err) {
         console.error("launch_app failed:", err);
       }

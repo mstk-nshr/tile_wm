@@ -603,10 +603,26 @@ pub fn quit_app(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
-pub fn launch_app(path: String, args: Vec<String>) -> Result<(), String> {
-    std::process::Command::new(&path)
-        .args(&args)
-        .spawn()
+pub fn launch_app(
+    path: String,
+    args: Vec<String>,
+    work_dir: Option<String>,
+) -> Result<(), String> {
+    let mut cmd = std::process::Command::new(&path);
+    cmd.args(&args);
+
+    let target_dir = match work_dir {
+        Some(ref dir) if !dir.trim().is_empty() => std::path::PathBuf::from(dir),
+        _ => {
+            let home = std::env::var("USERPROFILE")
+                .or_else(|_| std::env::var("HOME"))
+                .unwrap_or_else(|_| r"C:\Users\Default".to_string());
+            std::path::PathBuf::from(home)
+        }
+    };
+    cmd.current_dir(target_dir);
+
+    cmd.spawn()
         .map_err(|e| format!("Failed to launch app '{path}': {e}"))?;
     Ok(())
 }
