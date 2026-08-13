@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 // ─── Menu item handlers ────────────────────────────────────────────────────
 const menuEditConfig = document.getElementById("menu-edit-config");
 const menuHelp = document.getElementById("menu-help");
-const menuClose = document.getElementById("menu-close");
+const closeBtn = document.getElementById("close-btn");
+const menuReload = document.getElementById("menu-reload");
 const menuQuit = document.getElementById("menu-quit");
 
 const sliderSplitX = document.getElementById("slider-split-x");
@@ -37,8 +38,17 @@ menuHelp.addEventListener("click", async () => {
   }
 });
 
-menuClose.addEventListener("click", async () => {
+closeBtn.addEventListener("click", async () => {
   await closeMenu();
+});
+
+menuReload.addEventListener("click", async () => {
+  await closeMenu();
+  try {
+    await invoke("reload_app");
+  } catch (e) {
+    console.error("reload_app failed:", e);
+  }
 });
 
 menuQuit.addEventListener("click", async () => {

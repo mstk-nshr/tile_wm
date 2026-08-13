@@ -161,6 +161,7 @@ pub fn run() {
             commands::show_menu_window,
             commands::hide_menu_window,
             commands::quit_app,
+            commands::reload_app,
             commands::set_window_size,
             commands::toggle_flip_main,
             commands::capture_current_desktop,

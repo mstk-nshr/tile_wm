@@ -602,6 +602,39 @@ pub fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+/// Reload: launch a new instance of tile_wm and then exit this one.
+/// The existing single-instance logic in lib.rs will signal this process
+/// to terminate, but we also call app.exit(0) as a belt-and-suspenders
+/// guarantee.
+#[tauri::command]
+pub fn reload_app(app: tauri::AppHandle) {
+    // Obtain the path to the currently-running executable.
+    if let Ok(exe) = std::env::current_exe() {
+        // Spawn a new instance. Use DETACHED_PROCESS on Windows so the
+        // child does not inherit our console / window station.
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const DETACHED_PROCESS: u32 = 0x00000008;
+            const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+            let _ = std::process::Command::new(&exe)
+                .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
+                .spawn();
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = std::process::Command::new(&exe).spawn();
+        }
+    }
+    // Exit after a short delay so the new instance has time to acquire the
+    // singleton mutex and signal us.  The WaitForSingleObject in lib.rs will
+    // handle the termination, but app.exit() is the fallback.
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        app.exit(0);
+    });
+}
+
 #[tauri::command]
 pub fn launch_app(
     path: String,

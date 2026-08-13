@@ -196,6 +196,14 @@ bottom_spacing = 10
 left_spacing = 10
 right_spacing = 10
 inner_spacing = 6
+
+[[apps]]
+path = 'C:\Windows\explorer.exe'
+args = []
+
+[[apps]]
+path = '%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe'
+args = []
 ```
 
 ---

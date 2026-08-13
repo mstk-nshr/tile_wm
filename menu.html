@@ -8,7 +8,10 @@
   </head>
   <body>
     <div id="menu-dropdown" class="dropdown">
-      <div class="dropdown-item disabled" id="menu-version">tile_wm v0.1.0</div>
+      <div class="menu-header">
+        <div class="dropdown-item disabled" id="menu-version">tile_wm v0.1.0</div>
+        <button id="close-btn" class="close-btn" title="Close menu">✕</button>
+      </div>
       <div class="dropdown-separator"></div>
       <div class="slider-container">
         <div class="slider-label">Split Ratio X: <span id="val-split-x">50</span>%</div>
@@ -20,7 +23,7 @@
       <div class="dropdown-item" id="menu-edit-config">📝 Edit config.toml</div>
       <div class="dropdown-item" id="menu-help">❓ Help</div>
       <div class="dropdown-separator"></div>
-      <div class="dropdown-item" id="menu-close">Close menu</div>
+      <div class="dropdown-item" id="menu-reload">🔄 Reload</div>
       <div class="dropdown-item" id="menu-quit">Exit</div>
     </div>
     <script type="module" src="src/menu.js"></script>
