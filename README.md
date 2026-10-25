@@ -81,8 +81,15 @@ Using a low-level keyboard hook (`WH_KEYBOARD_LL`), the following hotkeys are pr
 |--------|----------|
 | `Ctrl + Alt + Win + F12` | Move foreground window to the right desktop |
 | `Ctrl + Alt + Win + F11` | Move foreground window to the left desktop |
+| `Ctrl + Alt + Win + F` | Fit active window to empty screen space |
+| `Win + ←` | Snap window to left half / top-left / bottom-left |
+| `Win + →` | Snap window to right half / top-right / bottom-right |
+| `Win + ↑` | Snap window upward (Top-Left/Top-Right) or maximize to work area |
+| `Win + ↓` | Snap window downward (Bottom-Left/Bottom-Right), restore, or minimize |
 
-After moving, automatically switches to the destination desktop and returns focus to the moved window.
+- **Virtual Desktop Window Move (`Ctrl+Alt+Win+F11/F12`)**: Moves the window to the adjacent virtual desktop, automatically switches to that desktop, and restores focus to the moved window.
+- **Empty Space Fit (`Ctrl+Alt+Win+F`)**: Calculates the boundary of available empty space on the current monitor based on visible windows and spacing settings, and resizes/moves the active window to fit.
+- **Window Snapping (`Win + Arrow Keys`)**: Overrides default Windows snapping to respect configured taskbar and screen margins/spacings (`top_spacing`, `inner_spacing`, `split_ratio_x`, etc.) and `flip_main` orientation.
 
 ### 📋 Popup Menu
 
