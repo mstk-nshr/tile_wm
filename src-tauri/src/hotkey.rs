@@ -559,7 +559,13 @@ fn fire_fit(hwnd: HWND) {
 
     for w in &other_windows {
         // 自分自身・最小化・cloaked・最前面固定ウィンドウを除外
-        if w.hwnd == hwnd_raw || w.is_minimized || w.is_cloaked || w.is_topmost {
+        // tile_wm 自身のウィンドウは障害物として扱わない
+        if w.hwnd == hwnd_raw
+            || w.is_minimized
+            || w.is_cloaked
+            || w.is_topmost
+            || w.process_name.eq_ignore_ascii_case("tile_wm.exe")
+        {
             continue;
         }
 
